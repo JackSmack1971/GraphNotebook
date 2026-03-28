@@ -1,0 +1,45 @@
+# Neo4j data and logs (binary, large, zero value to agent)
+neo4j_data/
+neo4j_logs/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Embedding model cache (1.1GB+ binary files)
+models/
+.cache/
+
+# LiteLLM disk cache
+litellm_cache/
+
+# Docker artifacts
+.docker/
+
+# Environment secrets
+.env
+*.key
+*.pem
+
+# Gradio temp files
+flagged/
+gradio_cached_examples/
+
+# Test coverage artifacts
+htmlcov/
+.coverage
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
