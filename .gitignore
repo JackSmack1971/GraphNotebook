@@ -1,0 +1,92 @@
+# ============================================================
+# GraphNotebook .gitignore
+# Covers all 4 phases: foundation, KG, communities, polish
+# ============================================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+dist/
+build/
+sdist/
+wheels/
+pip-wheel-metadata/
+*.whl
+
+# ----- Testing & Coverage -----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ----- Linting & Formatting -----
+.ruff_cache/
+.mypy_cache/
+
+# ----- Neo4j (Docker volumes) -----
+neo4j_data/
+neo4j_logs/
+neo4j_plugins/
+
+# ----- Embedding Models (1.1GB+ for BGE-M3) -----
+models/
+.cache/huggingface/
+.cache/torch/
+
+# ----- Cross-encoder Model (Phase 2 reranker) -----
+.cache/sentence_transformers/
+
+# ----- LiteLLM -----
+litellm_cache/
+
+# ----- Gradio -----
+flagged/
+gradio_cached_examples/
+
+# ----- Pyvis Generated HTML (Phase 4 graph viz) -----
+*.html.tmp
+graph_visualization_*.html
+
+# ----- User Uploads & Exports (Phase 4 runtime data) -----
+uploads/
+exports/
+
+# ----- Environment & Secrets -----
+.env
+.env.local
+.env.production
+*.key
+*.pem
+*.p12
+
+# ----- Docker -----
+.docker/
+
+# ----- Ollama (Phase 4 local-llm profile) -----
+ollama_data/
+
+# ----- IDE -----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ----- OS -----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ----- Gemini CLI transient state -----
+.gemini/tmp/
+.gemini/*.log
