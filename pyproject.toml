@@ -1,0 +1,37 @@
+[project]
+name = "graphnotebook"
+version = "0.1.0"
+description = "Personal GraphRAG knowledge base. NotebookLM meets knowledge graphs."
+authors = [{name = "GraphNotebook"}]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "gradio>=5.0.0",
+    "neo4j>=5.20.0",
+    "litellm>=1.0.0",
+    "sentence-transformers>=3.0.0",
+    "langgraph>=0.0.10",
+    "pymupdf>=1.23.0",
+    "python-docx>=1.1.0",
+    "tiktoken>=0.6.0",
+    "rapidfuzz>=3.6.0",
+    "neo4j-graphrag>=1.8.0",
+    "langchain-community>=0.0.38",
+    "pyvis>=0.3.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.3.0"
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
