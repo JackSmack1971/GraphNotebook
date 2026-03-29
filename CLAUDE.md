@@ -1,12 +1,12 @@
 # GraphNotebook
 
 ## Build & Test
-- Install: `pip install -e ".[dev]"`
-- Test: `python -m pytest tests/ -x -q`
-- Lint: `ruff check ./graphnotebook/ --select E,F,I`
-- Format: `ruff format ./graphnotebook/`
-- Schema init: `python -m graphnotebook.graph.schema_init`
-- Run: `python -m graphnotebook.main`
+- Install: `uv sync --all-extras`
+- Test: `uv run pytest tests/ -x -q`
+- Lint: `uv run ruff check ./graphnotebook/ --select E,F,I`
+- Format: `uv run ruff format ./graphnotebook/`
+- Schema init: `uv run python -m graphnotebook.graph.schema_init`
+- Run: `uv run python -m graphnotebook.main`
 - Docker services: `docker compose up -d`
 
 ## Conventions

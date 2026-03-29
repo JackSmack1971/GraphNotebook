@@ -1980,8 +1980,7 @@ graphnotebook = "graphnotebook.main:main"
 # 1. Clone & install
 git clone https://github.com/JackSmack1971/graphnotebook.git
 cd graphnotebook
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
+uv sync --all-extras
 
 # 2. Configure
 cp .env.example .env
@@ -1992,10 +1991,10 @@ docker compose up -d neo4j
 # With local LLM: docker compose --profile local-llm up -d
 
 # 4. Initialize graph schema
-python -m graphnotebook.graph.schema_init
+uv run python -m graphnotebook.graph.schema_init
 
 # 5. Run
-python -m graphnotebook.main
+uv run python -m graphnotebook.main
 # → http://localhost:7860
 
 # 6. First use

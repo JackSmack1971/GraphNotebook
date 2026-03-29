@@ -156,10 +156,10 @@ docker compose up -d
 
 Wait about 30 seconds for Neo4j to fully initialize. You can verify it's ready by opening [http://localhost:7474](http://localhost:7474) in your browser (log in with `neo4j` / `graphnotebook`).
 
-### Step 4 — Install the Python package
+### Step 4 — Install dependencies
 
 ```bash
-pip install -e ".[dev]"
+uv sync --all-extras
 ```
 
 > The `-e` flag installs in *editable mode* — changes to the source code take effect immediately without reinstalling.
@@ -169,7 +169,7 @@ pip install -e ".[dev]"
 This creates all Neo4j constraints and indexes that the application requires:
 
 ```bash
-python -m graphnotebook.graph.schema_init
+uv run python -m graphnotebook.graph.schema_init
 ```
 
 You should see confirmation that indexes were created. This only needs to be run once.
@@ -177,7 +177,7 @@ You should see confirmation that indexes were created. This only needs to be run
 ### Step 6 — Launch GraphNotebook
 
 ```bash
-python -m graphnotebook.main
+uv run python -m graphnotebook.main
 ```
 
 Open your browser at **[http://localhost:7860](http://localhost:7860)** — the Gradio interface is ready.
@@ -400,7 +400,7 @@ This starts an Ollama container. The fallback chain will automatically route to 
 ### Running Tests
 
 ```bash
-python -m pytest tests/ -x -q
+uv run pytest tests/ -x -q
 ```
 
 - `-x` stops on first failure (faster feedback loop)
@@ -410,10 +410,10 @@ python -m pytest tests/ -x -q
 
 ```bash
 # Check for errors and import order violations
-ruff check ./graphnotebook/ --select E,F,I
+uv run ruff check ./graphnotebook/ --select E,F,I
 
 # Auto-format all files
-ruff format ./graphnotebook/
+uv run ruff format ./graphnotebook/
 ```
 
 ### Re-initializing the Graph Schema
