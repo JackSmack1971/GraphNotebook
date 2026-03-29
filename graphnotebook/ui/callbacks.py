@@ -12,7 +12,7 @@ from graphnotebook.notebooks.manager import NotebookManager
 from graphnotebook.ui.components import (
     create_graph_visualization,
 )
-
+from graphnotebook.graph import queries
 
 async def handle_upload(
     file_paths: List[str],
@@ -28,8 +28,13 @@ async def handle_upload(
     if not notebook_id:
         return "Please select or create a notebook first."
 
-    status_lines = []
+    # Fetch notebook schema info
+    nb_manager = NotebookManager(neo4j_client)
+    nb = nb_manager.get(notebook_id)
+    schema_json = nb.schema_json if nb else None
+    schema_hash = nb.schema_hash if nb else "default"
 
+    status_lines = []
     for path in file_paths:
         try:
             filename = path.replace("\\", "/").split("/")[-1]
@@ -37,6 +42,8 @@ async def handle_upload(
                 {
                     "file_path": path,
                     "notebook_id": notebook_id,
+                    "notebook_schema_json": json.loads(schema_json) if schema_json else None,
+                    "notebook_schema_hash": schema_hash,
                     "neo4j_client": neo4j_client,
                     "embedding_engine": embedding_engine,
                     "config": config,
@@ -93,11 +100,11 @@ def handle_query_stream(
         {"role": "assistant", "content": "⛓️ *Navigating knowledge graph...*"}
     ]
 
-    # State needs conversation_history for the agent to use
     state = query_agent.invoke(
         {
             "query": message,
             "query_embedding": query_emb,
+            "notebook_id": notebook_id,
             "search_mode": search_mode,
             "conversation_history": history,
             "iterations": 0,
@@ -192,5 +199,24 @@ def export_graph_callback(notebook_id: str, format: str, nb_manager: NotebookMan
     return path
 
 
-def update_viz_callback(notebook_id: str, neo4j_client, filter_text: str = None):
-    return create_graph_visualization(neo4j_client, notebook_id, filter_text)
+def update_viz_callback(notebook_id: str, neo4j_client, filter_text: str = None, load_full: bool = False):
+    return create_graph_visualization(neo4j_client, notebook_id, filter_text, load_full)
+
+
+def update_stats(notebook_id: str, neo4j_client) -> str:
+    """Fetch and format notebook statistics."""
+    if not notebook_id:
+        return "Select a notebook to see stats."
+    
+    results = neo4j_client.query(queries.GET_NOTEBOOK_STATS, {"notebook_id": notebook_id})
+    if not results:
+        return "No data found for this notebook."
+    
+    r = results[0]
+    md = f"### 📊 Notebook Insights\n"
+    md += f"- **Documents:** {r.get('doc_count', 0)}\n"
+    md += f"- **Entities:** {r.get('entity_count', 0)}\n"
+    md += f"- **Relationships:** {r.get('rel_count', 0)}\n"
+    md += f"- **Communities:** {r.get('community_count', 0)}\n"
+    
+    return md

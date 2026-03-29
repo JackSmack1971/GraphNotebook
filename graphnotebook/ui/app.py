@@ -84,8 +84,16 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                     )
                     upload_btn = gr.Button("Start Ingestion", variant="primary")
                     upload_status = gr.Textbox(
-                        label="Status", interactive=False, lines=3
+                        label="In-Progress Status", interactive=False, lines=4
                     )
+                
+                gr.Markdown("### 📂 Managed Documents")
+                doc_list = gr.Dataframe(
+                    headers=["Filename", "Type", "Chunks", "Status", "Last Indexed"],
+                    datatype=["str", "str", "number", "str", "str"],
+                    interactive=False,
+                    label="Documents in this Notebook",
+                )
 
                 # HITL Review Section (Accordion that appears/opens on extraction)
                 with gr.Accordion("📝 Entity Review (HITL)", open=False):
@@ -156,15 +164,16 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
         # 1. Notebook Mgmt
         def on_nb_change(nb_id):
             if not nb_id:
-                return "", "Select a notebook"
-            # This needs update to scope by nb_id if we want, but global for now
-            stats = update_stats(neo4j_client)
-            return nb_id, stats
+                return "", "Select a notebook", []
+            stats = update_stats(nb_id, neo4j_client)
+            docs = nb_manager.get_documents(nb_id)
+            doc_rows = [[d["filename"], d["file_type"], d["chunk_count"], d["status"], str(d["ingested_at"])] for d in docs]
+            return nb_id, stats, doc_rows
 
         notebook_dropdown.change(
             fn=on_nb_change,
             inputs=[notebook_dropdown],
-            outputs=[current_nb_id, stats_display],
+            outputs=[current_nb_id, stats_display, doc_list],
         )
 
         create_nb_btn.click(
@@ -196,9 +205,9 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
             ],
             outputs=[upload_status],
         ).then(
-            fn=lambda nb_id: update_stats(neo4j_client),
+            fn=on_nb_change,
             inputs=[current_nb_id],
-            outputs=[stats_display],
+            outputs=[current_nb_id, stats_display, doc_list],
         )
 
         # 3. Streaming Chat
@@ -221,7 +230,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
         # 4. Graph Explorer
         refresh_viz_btn.click(
             fn=update_viz_callback,
-            inputs=[current_nb_id, gr.State(neo4j_client), viz_filter],
+            inputs=[current_nb_id, gr.State(neo4j_client), viz_filter, full_graph_toggle],
             outputs=[graph_html],
         )
 

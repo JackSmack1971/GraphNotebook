@@ -30,6 +30,14 @@ def main():
         # Check Neo4j Health
         if not neo4j_client.health_check():
             print("Warning: Neo4j health check failed. Ensure the database is running.")
+        else:
+            # 5. Run Phase 4 Migration
+            print("Running Phase 4 Automatic Migration (Idempotent)...")
+            from graphnotebook.graph import queries
+            res = neo4j_client.query(queries.MIGRATE_ENTITIES_TO_NOTEBOOKS)
+            if res:
+                count = res[0].get("count", 0)
+                print(f"Migrated {count} orphaned entities to notebooks.")
 
         # 4. Build and launch Gradio UI
         app = build_app(

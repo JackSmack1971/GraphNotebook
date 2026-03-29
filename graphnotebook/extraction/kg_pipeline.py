@@ -60,6 +60,7 @@ class KGConstructor:
     async def ingest_text(
         self,
         text: str,
+        notebook_id: str,
         notebook_schema_json: dict = None,
     ) -> dict:
         """
@@ -77,4 +78,14 @@ class KGConstructor:
         pipeline = self._build_pipeline(schema=schema)
         # run_async executes chunks, extraction, and Neo4j ingest
         await pipeline.run_async(text=text)
+
+        # Post-ingest: Link extracted entities to the notebook
+        self.driver.execute_query(
+            """
+            MATCH (d:Document {notebook_id: $nb_id})-[:HAS_CHUNK]->(c:Chunk)-[:MENTIONS]->(e:Entity)
+            MATCH (n:Notebook {id: $nb_id})
+            MERGE (n)-[:OWNER_OF]->(e)
+            """,
+            parameters_={"nb_id": notebook_id},
+        )
         return {"documents": 1, "status": "success"}

@@ -9,8 +9,9 @@ from graphnotebook.llm.gateway import LLMGateway
 class CommunityManager:
     """Detect communities and manage lazy summaries."""
 
-    def __init__(self, neo4j_client, llm_gateway: LLMGateway = None):
+    def __init__(self, neo4j_client, notebook_id: str = "", llm_gateway: LLMGateway = None):
         self.neo4j = neo4j_client
+        self.notebook_id = notebook_id
         self.llm = llm_gateway or LLMGateway("summarization")
 
     # ── Detection (runs at ingest time) ─────────────
@@ -24,19 +25,18 @@ class CommunityManager:
             CALL gds.graph.drop('entity_graph') YIELD graphName RETURN graphName
         """)
 
-        # 2. Project entity graph into GDS
+        # 2. Project entity graph into GDS (Scoped to Notebook)
+        # Using a Cypher projection to only include entities owned by this notebook
         self.neo4j.query("""
-            CALL gds.graph.project(
+            CALL gds.graph.project.cypher(
                 'entity_graph',
-                'Entity',
-                {
-                    RELATES_TO: {
-                        orientation: 'UNDIRECTED',
-                        properties: ['weight']
-                    }
-                }
+                'MATCH (n:Notebook {id: $nb_id})-[:OWNER_OF]->(e:Entity) RETURN id(e) AS id',
+                'MATCH (n:Notebook {id: $nb_id})-[:OWNER_OF]->(s)-[r:RELATES_TO]-(t) 
+                 WHERE (n)-[:OWNER_OF]->(t) 
+                 RETURN id(s) AS source, id(t) AS target, coalesce(r.weight, 1.0) AS weight',
+                {parameters: {nb_id: $nb_id}}
             )
-        """)
+        """, params={"nb_id": self.notebook_id})
 
         # 3. Run Leiden with hierarchical levels
         try:
@@ -155,7 +155,7 @@ Respond as JSON:
         self._cache_summary(community_id, summary)
         return summary
 
-    def get_relevant_summaries(self, query_embedding: list, top_n: int = 5) -> list:
+    def get_relevant_summaries(self, query_embedding: list, top_n: int = 5, notebook_id: str = None) -> list:
         """
         For global search: find communities relevant to query via entity embeddings.
         Only summarize the relevant ones (lazy).
@@ -165,7 +165,8 @@ Respond as JSON:
             CALL db.index.vector.queryNodes(
                 'entity_embeddings', $top_k, $query_embedding
             ) YIELD node AS entity, score
-            MATCH (entity)-[:BELONGS_TO]->(c:Community)
+            MATCH (n:Notebook {id: $notebook_id})
+            MATCH (n)-[:OWNER_OF]->(entity)-[:BELONGS_TO]->(c:Community)
             WITH c, count(entity) AS match_count, avg(score) AS avg_score
             ORDER BY match_count DESC, avg_score DESC
             LIMIT $top_n
@@ -173,11 +174,12 @@ Respond as JSON:
                    c.summary AS cached_summary,
                    c.title AS title,
                    match_count, avg_score
-        """,
-            params={
+            """,
+            parameters={
                 "query_embedding": query_embedding,
-                "top_k": top_n * 3,  # over-fetch entities to find communities
+                "top_k": top_n * 3,
                 "top_n": top_n,
+                "notebook_id": notebook_id or self.notebook_id,
             },
         )
 

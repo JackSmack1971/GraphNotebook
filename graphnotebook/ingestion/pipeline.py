@@ -2,7 +2,7 @@
 
 from __future__ import annotations  # helps with forward references / Python 3.7+
 
-from typing import List, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
@@ -38,6 +38,9 @@ class IngestionState(TypedDict, total=False):
     status: str
     error: Optional[str]
     entity_count: int
+    notebook_schema_hash: str
+    skip_chunking: bool
+    skip_extraction: bool
     # Dependencies (passed through state for simplicity in this pure functional graph)
     config: Optional[Settings]
     neo4j_client: Optional[Neo4jClient]
@@ -55,15 +58,28 @@ async def parse_step(state: IngestionState) -> IngestionState:
             # Check for duplicate in this notebook
 
             nb_id = state.get("notebook_id", "default")
+            current_schema_hash = state.get("notebook_schema_hash", "default")
+            
             result = neo4j.query(
-                queries.CHECK_DOC_HASH,
+                "MATCH (d:Document {file_hash: $file_hash, notebook_id: $notebook_id}) "
+                "RETURN d.schema_hash AS schema_hash, d.id AS id",
                 {"file_hash": parsed.file_hash, "notebook_id": nb_id},
             )
-
-            if result and result[0]["exists"]:
-                state["error"] = "Document already indexed in this notebook."
-                state["status"] = "failed"
-                return state
+            
+            if result:
+                existing_schema_hash = result[0].get("schema_hash", "none")
+                if existing_schema_hash == current_schema_hash:
+                    state["skip_chunking"] = True
+                    state["skip_extraction"] = True
+                    state["status"] = "complete"
+                    state["parsed_doc"] = parsed
+                    return state
+                else:
+                    state["skip_chunking"] = True
+                    state["skip_extraction"] = False
+                    state["status"] = "re-extracting"
+                    state["parsed_doc"] = parsed
+                    return state
 
             # If filename exists in this notebook but hash is different, delete old one
             old_docs = neo4j.query(
@@ -135,6 +151,7 @@ async def embed_and_store_step(state: IngestionState) -> IngestionState:
             "file_hash": doc.file_hash,
             "raw_text_length": doc.raw_text_length,
             "chunk_count": len(chunks),
+            "schema_hash": state.get("notebook_schema_hash", "default"),
         }
         neo4j.query(queries.UPSERT_DOCUMENT, doc_params)
 
@@ -183,8 +200,12 @@ async def extract_kg_step(state: IngestionState) -> IngestionState:
         if not doc:
             raise ValueError("Parsed document missing in state")
 
-        # Async run now native
-        await kg.ingest_text(doc.raw_text)
+        # Async run with notebook context and schema
+        await kg.ingest_text(
+            text=doc.raw_text,
+            notebook_id=state.get("notebook_id", "default"),
+            notebook_schema_json=state.get("notebook_schema_json"),
+        )
 
         # ── Safely count entities linked to this document ─────────────────────
         doc_id = doc.file_hash
@@ -260,6 +281,22 @@ async def detect_communities_step(state: IngestionState) -> IngestionState:
     return state
 
 
+def should_chunk(state: IngestionState) -> Literal["chunk", "extract_kg", "end"]:
+    if state.get("error"):
+        return "end"
+    if state.get("skip_chunking"):
+        if state.get("skip_extraction"):
+             return "end"
+        return "extract_kg"
+    return "chunk"
+
+def should_resolve(state: IngestionState) -> Literal["resolve", "end"]:
+    if state.get("error"):
+        return "end"
+    if state.get("skip_extraction") and state.get("skip_chunking"):
+        return "end"
+    return "resolve"
+
 # ── Build Graph ─────────────────────────────────────
 ingestion_workflow = StateGraph(IngestionState)
 ingestion_workflow.add_node("parse", parse_step)
@@ -270,10 +307,18 @@ ingestion_workflow.add_node("resolve_entities", resolve_entities_step)
 ingestion_workflow.add_node("detect_communities", detect_communities_step)
 
 ingestion_workflow.set_entry_point("parse")
-ingestion_workflow.add_edge("parse", "chunk")
+ingestion_workflow.add_conditional_edges(
+    "parse",
+    should_chunk,
+    {"chunk": "chunk", "extract_kg": "extract_kg", "end": END}
+)
 ingestion_workflow.add_edge("chunk", "embed_store")
 ingestion_workflow.add_edge("embed_store", "extract_kg")
-ingestion_workflow.add_edge("extract_kg", "resolve_entities")
+ingestion_workflow.add_conditional_edges(
+    "extract_kg",
+    should_resolve,
+    {"resolve": "resolve_entities", "end": END}
+)
 ingestion_workflow.add_edge("resolve_entities", "detect_communities")
 ingestion_workflow.add_edge("detect_communities", END)
 

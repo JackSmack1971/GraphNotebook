@@ -8,17 +8,22 @@ from graphnotebook.graph.neo4j_client import Neo4jClient
 
 
 def create_graph_visualization(
-    neo4j_client: Neo4jClient, notebook_id: str = None, entity_filter: str = None
+    neo4j_client: Neo4jClient, 
+    notebook_id: str = None, 
+    entity_filter: str = None,
+    load_full: bool = False
 ) -> str:
     """
     Generate an interactive PyVis network graph.
     Returns a self-contained HTML string.
     """
-    # Fetch top 100 entities by mention count
+    if not notebook_id:
+        return "<div style='padding:20px;'>Select a notebook to view graph.</div>"
+
+    # Fetch entities owned by this notebook
     query = """
-    MATCH (e)
+    MATCH (n:Notebook {id: $nb_id})-[:OWNER_OF]->(e)
     WHERE size(labels(e)) > 0 
-      AND NOT e:Notebook AND NOT e:Document AND NOT e:Chunk AND NOT e:Community
     """
     if entity_filter:
         query += " AND toLower(e.id) CONTAINS toLower($filter)"
@@ -27,10 +32,12 @@ def create_graph_visualization(
     RETURN e.id AS id, labels(e)[0] AS type, 
            e.description AS description, e.mention_count AS mc
     ORDER BY e.mention_count DESC
-    LIMIT 100
     """
+    
+    if not load_full:
+        query += " LIMIT 100"
 
-    params = {"filter": entity_filter} if entity_filter else {}
+    params = {"nb_id": notebook_id, "filter": entity_filter}
     entities = neo4j_client.query(query, params)
 
     if not entities:

@@ -4,12 +4,27 @@ Defines allowed entity types and relationship types for KG extraction.
 Can be overridden per-notebook via schema_json on the Notebook node.
 """
 
+import hashlib
+import json
+
 from neo4j_graphrag.experimental.components.schema import (
     NodeType,
     PropertyType,
     RelationshipType,
     SchemaBuilder,
 )
+
+
+def get_schema_hash(schema_json: dict) -> str:
+    """
+    Compute a stable SHA256 hash of the schema JSON.
+    Used for incremental ingestion to detect if re-extraction is needed.
+    """
+    if not schema_json:
+        return "default"
+    # Sort keys for stability
+    schema_str = json.dumps(schema_json, sort_keys=True)
+    return hashlib.sha256(schema_str.encode()).hexdigest()
 
 # ── Default Entity Types ────────────────────────────
 

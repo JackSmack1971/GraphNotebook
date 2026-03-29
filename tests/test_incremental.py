@@ -1,29 +1,24 @@
 import pytest
 from unittest.mock import MagicMock
-from graphnotebook.ingestion.pipeline import ingestion_pipeline
+from graphnotebook.ingestion.pipeline import parse_step
+from graphnotebook.ingestion.parsers import ParsedDocument
+import graphnotebook.ingestion.pipeline as pipeline
 
 
 @pytest.mark.asyncio
-async def test_incremental_skip_doc():
+async def test_incremental_skip_exact_duplicate():
+    """Test that exact file + schema match skips everything."""
     mock_neo4j = MagicMock()
-    # Mock CHECK_DOC_HASH result
-    mock_neo4j.query.return_value = [{"exists": True, "doc_id": "123"}]
+    # Mock result showing same file hash and same schema hash
+    mock_neo4j.query.return_value = [{"schema_hash": "hash_v1", "id": "doc123"}]
 
     state = {
         "file_path": "test.pdf",
         "notebook_id": "nb1",
+        "notebook_schema_hash": "hash_v1",
         "neo4j_client": mock_neo4j,
         "status": "started",
     }
-
-    # We only run the 'parse' step for this test
-    # (Simplified: in a real test we'd invoke the whole graph but stub out
-    # the parse_document function to control the hash)
-    from graphnotebook.ingestion.pipeline import parse_step
-    from graphnotebook.ingestion.parsers import ParsedDocument
-
-    # Monkeypatch parse_document
-    import graphnotebook.ingestion.pipeline as pipeline
 
     original_parse = pipeline.parse_document
     pipeline.parse_document = lambda path: ParsedDocument(
@@ -37,39 +32,68 @@ async def test_incremental_skip_doc():
 
     try:
         new_state = await parse_step(state)
-        assert new_state["status"] == "failed"
-        assert "already indexed" in new_state["error"]
+        assert new_state["status"] == "complete"
+        assert new_state["skip_chunking"] is True
+        assert new_state["skip_extraction"] is True
     finally:
         pipeline.parse_document = original_parse
 
 
 @pytest.mark.asyncio
-async def test_incremental_reingest_filename_collision():
+async def test_incremental_reextract_on_schema_change():
+    """Test that file match but schema change triggered re-extraction."""
     mock_neo4j = MagicMock()
-    # Mock CHECK_DOC_HASH result (hash is different)
-    # Mock filename match result
-    mock_neo4j.query.side_effect = [
-        [{"exists": False}],  # Hash doesn't match
-        [{"id": "old_id"}],  # Filename matches
-        None,  # DELETE_DOC_CASCADE call
-        [{"count": 0}],  # Entity counting query
-    ]
+    # Mock result showing same file hash but OLD schema hash
+    mock_neo4j.query.return_value = [{"schema_hash": "hash_v1", "id": "doc123"}]
 
     state = {
         "file_path": "test.pdf",
         "notebook_id": "nb1",
+        "notebook_schema_hash": "hash_v2", # NEW Schema
         "neo4j_client": mock_neo4j,
         "status": "started",
     }
 
-    from graphnotebook.ingestion.pipeline import parse_step
-    from graphnotebook.ingestion.parsers import ParsedDocument
-
-    import graphnotebook.ingestion.pipeline as pipeline
-
     original_parse = pipeline.parse_document
     pipeline.parse_document = lambda path: ParsedDocument(
         filename="test.pdf",
+        file_type="pdf",
+        raw_text="test",
+        file_hash="same_hash",
+        raw_text_length=4,
+        pages=[],
+    )
+
+    try:
+        new_state = await parse_step(state)
+        assert new_state["status"] == "re-extracting"
+        assert new_state["skip_chunking"] is True
+        assert new_state["skip_extraction"] is False
+    finally:
+        pipeline.parse_document = original_parse
+
+
+@pytest.mark.asyncio
+async def test_incremental_full_ingest_on_new_file():
+    """Test that a new file runs the full pipeline."""
+    mock_neo4j = MagicMock()
+    # Mock result showing NO file match
+    mock_neo4j.query.side_effect = [
+        [], # No hash match
+        [], # No filename match
+    ]
+
+    state = {
+        "file_path": "new.pdf",
+        "notebook_id": "nb1",
+        "notebook_schema_hash": "hash_v1",
+        "neo4j_client": mock_neo4j,
+        "status": "started",
+    }
+
+    original_parse = pipeline.parse_document
+    pipeline.parse_document = lambda path: ParsedDocument(
+        filename="new.pdf",
         file_type="pdf",
         raw_text="test",
         file_hash="new_hash",
@@ -80,8 +104,7 @@ async def test_incremental_reingest_filename_collision():
     try:
         new_state = await parse_step(state)
         assert new_state["status"] == "parsed"
-        # Verify DELETE_DOC_CASCADE was called
-        calls = mock_neo4j.query.call_args_list
-        assert any("DELETE_DOC_CASCADE" in str(c) for c in calls)
+        assert new_state.get("skip_chunking") is not True
+        assert new_state.get("skip_extraction") is not True
     finally:
         pipeline.parse_document = original_parse

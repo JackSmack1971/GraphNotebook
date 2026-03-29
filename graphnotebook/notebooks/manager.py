@@ -17,6 +17,7 @@ class Notebook:
     name: str
     description: str
     schema_json: Optional[str]
+    schema_hash: str
     created_at: Any
     updated_at: Any
     doc_count: int = 0
@@ -27,12 +28,15 @@ class NotebookManager:
 
     def __init__(self, neo4j_client):
         self.neo4j = neo4j_client
+        from graphnotebook.extraction.schema import get_schema_hash
+        self.get_schema_hash = get_schema_hash
 
     def create(
         self, name: str, description: str = "", schema_json: str = None
     ) -> Notebook:
         """Create a new notebook namespace."""
         nb_id = str(uuid.uuid4())
+        s_hash = self.get_schema_hash(json.loads(schema_json) if schema_json else None)
         result = self.neo4j.query(
             queries.CREATE_NOTEBOOK,
             params={
@@ -40,6 +44,7 @@ class NotebookManager:
                 "name": name,
                 "description": description,
                 "schema_json": schema_json,
+                "schema_hash": s_hash,
             },
         )
         n = result[0]["n"]
@@ -48,6 +53,7 @@ class NotebookManager:
             name=n.get("name"),
             description=n.get("description"),
             schema_json=n.get("schema_json"),
+            schema_hash=n.get("schema_hash", "default"),
             created_at=n.get("created_at"),
             updated_at=n.get("updated_at"),
         )
@@ -63,6 +69,7 @@ class NotebookManager:
             name=n.get("name"),
             description=n.get("description"),
             schema_json=n.get("schema_json"),
+            schema_hash=n.get("schema_hash", "default"),
             created_at=n.get("created_at"),
             updated_at=n.get("updated_at"),
         )
@@ -79,6 +86,7 @@ class NotebookManager:
                     name=n.get("name", "Untitled"),
                     description=n.get("description", ""),
                     schema_json=n.get("schema_json"),
+                    schema_hash=n.get("schema_hash", "default"),
                     created_at=n.get("created_at"),
                     updated_at=n.get("updated_at"),
                     doc_count=r.get("doc_count", 0),
@@ -101,6 +109,7 @@ class NotebookManager:
             params["description"] = description
         if schema_json is not None:
             params["schema_json"] = schema_json
+            params["schema_hash"] = self.get_schema_hash(json.loads(schema_json) if schema_json else None)
 
         result = self.neo4j.query(queries.UPDATE_NOTEBOOK, params=params)
         if not result:
@@ -111,6 +120,7 @@ class NotebookManager:
             name=n.get("name"),
             description=n.get("description"),
             schema_json=n.get("schema_json"),
+            schema_hash=n.get("schema_hash", "default"),
             created_at=n.get("created_at"),
             updated_at=n.get("updated_at"),
         )
@@ -142,9 +152,9 @@ class NotebookManager:
 
     def export_json(self, notebook_id: str) -> str:
         """Dump the full graph to a dictionary."""
-        entities = self.neo4j.query(queries.EXPORT_ENTITIES_JSON)
-        rels = self.neo4j.query(queries.EXPORT_RELATIONSHIPS_JSON)
-        communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON)
+        entities = self.neo4j.query(queries.EXPORT_ENTITIES_JSON, params={"notebook_id": notebook_id})
+        rels = self.neo4j.query(queries.EXPORT_RELATIONSHIPS_JSON, params={"notebook_id": notebook_id})
+        communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON, params={"notebook_id": notebook_id})
 
         nb = self.get(notebook_id)
 
@@ -162,7 +172,7 @@ class NotebookManager:
 
     def export_markdown(self, notebook_id: str) -> str:
         """Export a structured markdown report of the graph's communities and schema."""
-        communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON)
+        communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON, params={"notebook_id": notebook_id})
 
         # Sort by level (highest logical grouping first) and entity count
         communities.sort(

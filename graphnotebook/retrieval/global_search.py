@@ -9,13 +9,21 @@ from graphnotebook.llm.gateway import LLMGateway
 class GlobalSearcher:
     """Implement global map-reduce search over community summaries."""
 
-    def __init__(self, neo4j_client, llm_gateway: LLMGateway = None):
-        self.community_manager = CommunityManager(neo4j_client, llm_gateway)
-        # We need a separate synthesis gateway since map-reduce uses synthesis
+    def __init__(
+        self,
+        neo4j_client,
+        notebook_id: str = "",
+        llm_gateway: LLMGateway = None,
+        community_manager: CommunityManager = None,
+    ):
+        self.community_manager = community_manager or CommunityManager(
+            neo4j_client, notebook_id, llm_gateway
+        )
+        self.notebook_id = notebook_id
         self.llm = llm_gateway or LLMGateway("synthesis")
 
     def search(
-        self, query: str, query_embedding: list, top_communities: int = 5
+        self, query: str, query_embedding: list, top_communities: int = 5, notebook_id: str = None
     ) -> str:
         """
         Execute map-reduce global search.
@@ -25,7 +33,7 @@ class GlobalSearcher:
         """
         # 1. Fetch relevant lazy summaries
         summaries = self.community_manager.get_relevant_summaries(
-            query_embedding, top_n=top_communities
+            query_embedding, top_n=top_communities, notebook_id=notebook_id
         )
 
         if not summaries:

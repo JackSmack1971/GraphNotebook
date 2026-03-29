@@ -4,7 +4,7 @@ Dynamically selects retrieval strategy based on query classification.
 Includes sufficiency evaluation and retry loop.
 """
 
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, List
 
 from langgraph.graph import END, StateGraph
 
@@ -12,21 +12,25 @@ from graphnotebook.llm.gateway import LLMGateway
 from graphnotebook.retrieval.context_builder import ContextBuilder
 from graphnotebook.retrieval.global_search import GlobalSearcher
 from graphnotebook.retrieval.local_search import LocalSearcher
-from graphnotebook.retrieval.reranker import Reranker
+from graphnotebook.retrieval.reranker import Reranker, RetrievedChunk
 from graphnotebook.retrieval.text2cypher import Text2CypherRetriever
 
 
 class QueryState(TypedDict):
     query: str
-    query_embedding: list
-    search_mode: str  # "auto", "local", "global", "hybrid"
-    retrieved_chunks: list
-    community_summaries: list
+    query_embedding: List[float]
+    notebook_id: str
+    search_mode: str
+    conversation_history: list
+    iterations: int
+    stream: bool
+    retrieved_chunks: List[RetrievedChunk]
+    community_summaries: List[dict]
     context: str
     answer: str
-    sources: list
-    iterations: int
-    conversation_history: list  # List of {"role": "user/assistant", "content": str}
+    sources: List[dict]
+    full_synthesis_prompt: str
+    system_prompt: str
 
 
 # ── Singletons (initialized at module level) ────────
@@ -44,12 +48,12 @@ def build_query_agent(neo4j_client):
     Closes over searcher instances.
     """
     local_searcher = LocalSearcher(neo4j_client)
-    global_searcher = GlobalSearcher(neo4j_client, synthesis_llm)
-    text2cypher_retriever = Text2CypherRetriever(neo4j_client, synthesis_llm)
+    global_searcher = GlobalSearcher(neo4j_client, llm_gateway=synthesis_llm)
+    text2cypher_retriever = Text2CypherRetriever(neo4j_client, llm_gateway=synthesis_llm)
 
     def classify_query(state: QueryState) -> QueryState:
         """Determine retrieval strategy via LLM classification."""
-        if state["search_mode"] != "auto":
+        if state.get("search_mode") != "auto":
             return state
 
         classification = llm.invoke_json(
@@ -67,29 +71,27 @@ Respond: {{"mode": "local|global|hybrid"}}"""
 
     def execute_retrieval(state: QueryState) -> QueryState:
         """Execute retrieval based on classification."""
-        mode = state["search_mode"]
+        mode = state.get("search_mode", "hybrid")
+        notebook_id = state.get("notebook_id")
 
-        # Initialize defaults
         if "retrieved_chunks" not in state:
             state["retrieved_chunks"] = []
         if "community_summaries" not in state:
             state["community_summaries"] = []
 
         if mode in ("local", "hybrid"):
-            # neo4j vector + graph traversal -> rerank
-            raw_chunks = local_searcher.hybrid_search(
+            raw_chunks = local_searcher.search(
                 query_embedding=state["query_embedding"],
-                query_text=state["query"],
                 top_k=20,
+                notebook_id=notebook_id,
             )
             state["retrieved_chunks"] = reranker.rerank(
                 state["query"], raw_chunks, top_k=8
             )
 
         if mode in ("global", "hybrid"):
-            # Lazy community summaries
             summaries = global_searcher.community_manager.get_relevant_summaries(
-                state["query_embedding"], top_n=5
+                state["query_embedding"], top_n=5, notebook_id=notebook_id
             )
             state["community_summaries"] = summaries
 
@@ -106,24 +108,18 @@ Respond: {{"mode": "local|global|hybrid"}}"""
     def retry_broader(state: QueryState) -> QueryState:
         """Widen search: try text2cypher fallback."""
         state["iterations"] = state.get("iterations", 0) + 1
-
-        # text2cypher fallback
         cypher_results = text2cypher_retriever.query(state["query"])
-
-        # We manually wrap cypher dicts into RetrievedChunk-like objects
-        from graphnotebook.retrieval.reranker import RetrievedChunk
 
         chunks = state.get("retrieved_chunks", [])
         for i, row in enumerate(cypher_results):
             text_repr = "\\n".join(f"{k}: {v}" for k, v in row.items())
             chunks.append(
                 RetrievedChunk(
+                    id=f"cypher_{i}",
                     text=f"Cypher Result {i + 1}: {text_repr}",
                     score=1.0,
-                    source_file="text2cypher",
-                    chunk_index=i,
-                    entities=[],
-                    relationships=[],
+                    source="text2cypher",
+                    metadata={"page_number": None, "entities": [], "relationships": []},
                 )
             )
 
@@ -132,22 +128,24 @@ Respond: {{"mode": "local|global|hybrid"}}"""
 
     def synthesize(state: QueryState) -> QueryState:
         """Generate final answer with source attribution."""
+        notebook_id = state.get("notebook_id")
 
         if (
-            state["search_mode"] == "global"
+            state.get("search_mode") == "global"
             and not state.get("retrieved_chunks")
             and state.get("community_summaries")
         ):
-            # Map reduce bypass (avoids standard chunk listing)
+            # Map reduce bypass
             answer = global_searcher.search(
                 query=state["query"],
                 query_embedding=state["query_embedding"],
                 top_communities=5,
+                notebook_id=notebook_id,
             )
             state["context"] = ""
             state["answer"] = answer
             state["sources"] = [
-                {"type": "community", "title": c["title"]}
+                {"type": "community", "title": c.get("title", "Community " + str(c.get("id")))}
                 for c in state["community_summaries"]
             ]
             return state
@@ -157,10 +155,10 @@ Respond: {{"mode": "local|global|hybrid"}}"""
             chunks=state.get("retrieved_chunks", []),
             summaries=state.get("community_summaries", []),
         )
-        # Incorporate conversation history (last 3 turns, capped)
+        
         history_text = ""
         if state.get("conversation_history"):
-            history = state["conversation_history"][-6:]  # 3 pairs
+            history = state["conversation_history"][-6:]
             history_parts = []
             for m in history:
                 role = "User" if m["role"] == "user" else "Assistant"
@@ -175,27 +173,21 @@ Respond: {{"mode": "local|global|hybrid"}}"""
             )
 
         state["context"] = context
-        state["answer"] = ""  # Will be streamed by the UI caller or filled here
-
-        # We'll let the UI handle the actual streaming invoke_stream
-        # to provide the best reactive experience in Gradio.
-        # But we provide the full prompt here.
         state["full_synthesis_prompt"] = f"{prompt}\n\nContext:\n{context}"
         state["system_prompt"] = (
             "Answer based ONLY on the provided context. "
-            "Cite sources as [Source: filename, chunk N]. "
+            "Cite sources as [Source: filename]. "
             "If context is insufficient, say so clearly."
         )
 
-        # For non-streaming fallback
         if not state.get("stream", False):
             state["answer"] = synthesis_llm.invoke(
                 prompt=state["full_synthesis_prompt"], system=state["system_prompt"]
             )
-        # Assuming context_builder.extract_sources exists
+        
         sources = []
         for c in state.get("retrieved_chunks", []):
-            sources.append(getattr(c, "source_file", "unknown"))
+            sources.append(getattr(c, "source", "unknown"))
 
         state["sources"] = [{"type": "chunk", "source": s} for s in set(sources)]
         return state
