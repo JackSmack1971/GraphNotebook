@@ -1,6 +1,7 @@
 import pytest
 from graphnotebook.extraction.schema import build_default_schema, build_schema_from_json
 
+
 def test_build_default_schema():
     schema = build_default_schema()
     assert schema is not None
@@ -10,18 +11,17 @@ def test_build_default_schema():
     assert "Organization" in schema_str
     assert "WORKS_FOR" in schema_str
 
+
 def test_build_schema_from_json():
     json_schema = {
         "entities": [
             {
-                "label": "CustomEntity", 
-                "description": "A test entity", 
-                "properties": [{"name": "test_prop", "type": "STRING"}]
+                "label": "CustomEntity",
+                "description": "A test entity",
+                "properties": [{"name": "test_prop", "type": "STRING"}],
             }
         ],
-        "relationships": [
-            {"label": "CUSTOM_RELATION", "description": "A test rel"}
-        ]
+        "relationships": [{"label": "CUSTOM_RELATION", "description": "A test rel"}],
     }
     schema = build_schema_from_json(json_schema)
     schema_str = str(schema)

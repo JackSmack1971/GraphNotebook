@@ -36,3 +36,9 @@ target-version = "py311"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=graphnotebook --cov-report=term-missing --cov-fail-under=80"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]

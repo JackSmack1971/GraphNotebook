@@ -214,7 +214,7 @@ Respond: {{"mode": "local|global|hybrid"}}"""
         evaluate_sufficiency,
         {"synthesize": "synthesize", "retry": "retry"},
     )
-    query_workflow.add_edge("retry", "retrieve")
+    query_workflow.add_edge("retry", "synthesize")
     query_workflow.add_edge("synthesize", END)
 
     return query_workflow.compile()
