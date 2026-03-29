@@ -29,7 +29,7 @@ class KGConstructor:
             settings.neo4j_uri,
             auth=(settings.neo4j_user, settings.neo4j_password),
         )
-        
+
         # Derive LangChain-compatible LLM from gateway's model name
         # (neo4j-graphrag requires LangChain LLM interface)
         self.llm = ChatLiteLLM(
@@ -38,9 +38,7 @@ class KGConstructor:
         )
 
         # Local embedder specific to neo4j-graphrag expectations (requires derived class)  # noqa: E501
-        self.embedder = SentenceTransformerEmbeddings(
-            model=settings.embedding_model
-        )
+        self.embedder = SentenceTransformerEmbeddings(model=settings.embedding_model)
 
         # Default schema
         self.default_schema = build_default_schema()

@@ -27,7 +27,7 @@ class GlobalSearcher:
         summaries = self.community_manager.get_relevant_summaries(
             query_embedding, top_n=top_communities
         )
-        
+
         if not summaries:
             return "No relevant community info found to answer this global query."
 
@@ -40,8 +40,8 @@ class GlobalSearcher:
 to answer the user's question.
 If the community is irrelevant, score it 0.
 
-Community Title: {c.get('title')}
-Community Summary: {c.get('summary')}
+Community Title: {c.get("title")}
+Community Summary: {c.get("summary")}
 
 Question: {query}
 
@@ -52,14 +52,16 @@ Respond in JSON format:
 }}""",
                 system="You are an expert knowledge extractor.",
             )
-            
+
             score = map_response.get("score", 0)
             if score > 0:
-                partial_answers.append({
-                    "title": c.get("title"),
-                    "answer": map_response.get("answer"),
-                    "score": score
-                })
+                partial_answers.append(
+                    {
+                        "title": c.get("title"),
+                        "answer": map_response.get("answer"),
+                        "score": score,
+                    }
+                )
 
         # Sort partials by score
         partial_answers = sorted(
@@ -76,9 +78,9 @@ Respond in JSON format:
                 f"### [Community: {pa['title']}] (Score: {pa['score']})\\n"
                 f"{pa['answer']}\\n"
             )
-            
+
         final_context = "\n".join(context_parts)
-        
+
         final_answer = self.llm.invoke(
             prompt=f"""Question: {query}
 
@@ -89,5 +91,5 @@ Synthesize a comprehensive final answer based ONLY on the evidence above.
 Cite the community titles when referencing evidence.""",
             system="You are an expert synthesizer. Provide comprehensive overviews.",
         )
-        
+
         return final_answer

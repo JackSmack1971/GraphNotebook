@@ -63,6 +63,7 @@ class LLMGateway:
         except json.JSONDecodeError:
             # Fallback if json load still fails
             raise ValueError(f"Failed to parse JSON from LLM response: {raw}")
+
     def invoke_stream(self, prompt: str, system: str = "", **kwargs):
         """Streaming version of invoke."""
         messages = []

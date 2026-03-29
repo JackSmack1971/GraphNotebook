@@ -80,14 +80,14 @@ class CommunityManager:
                 UNWIND members AS member
                 MERGE (member)-[:BELONGS_TO]->(c)
             """)
-            
+
             # 6. Delete orphaned communities
             self.neo4j.query("""
                 MATCH (c:Community)
                 WHERE NOT ()-[:BELONGS_TO]->(c)
                 DETACH DELETE c
             """)
-            
+
             return result
         finally:
             # Always drop the GDS projection to prevent memory leaks
@@ -106,7 +106,8 @@ class CommunityManager:
                 return cached
 
         # Gather community context
-        context = self.neo4j.query("""
+        context = self.neo4j.query(
+            """
             MATCH (e:Entity)-[:BELONGS_TO]->(c:Community {id: $cid})
             OPTIONAL MATCH (e)-[r:RELATES_TO]-(other:Entity)-[:BELONGS_TO]->(c)
             RETURN
@@ -117,7 +118,9 @@ class CommunityManager:
                     source: e.name, rel: r.type,
                     target: other.name, desc: r.description
                 }) AS relationships
-        """, params={"cid": community_id})
+        """,
+            params={"cid": community_id},
+        )
 
         if not context:
             return {"title": "Empty", "summary": "", "key_findings": [], "rank": 0}
@@ -145,21 +148,20 @@ Respond as JSON:
             system=(
                 "You are a knowledge graph analyst. "
                 "Be precise and comprehensive. Rank defaults to 0."
-            )
+            ),
         )
 
         # Cache in Neo4j
         self._cache_summary(community_id, summary)
         return summary
 
-    def get_relevant_summaries(
-        self, query_embedding: list, top_n: int = 5
-    ) -> list:
+    def get_relevant_summaries(self, query_embedding: list, top_n: int = 5) -> list:
         """
         For global search: find communities relevant to query via entity embeddings.
         Only summarize the relevant ones (lazy).
         """
-        results = self.neo4j.query("""
+        results = self.neo4j.query(
+            """
             CALL db.index.vector.queryNodes(
                 'entity_embeddings', $top_k, $query_embedding
             ) YIELD node AS entity, score
@@ -171,27 +173,33 @@ Respond as JSON:
                    c.summary AS cached_summary,
                    c.title AS title,
                    match_count, avg_score
-        """, params={
-            "query_embedding": query_embedding,
-            "top_k": top_n * 3,  # over-fetch entities to find communities
-            "top_n": top_n,
-        })
+        """,
+            params={
+                "query_embedding": query_embedding,
+                "top_k": top_n * 3,  # over-fetch entities to find communities
+                "top_n": top_n,
+            },
+        )
 
         summaries = []
         for row in results:
             if row.get("cached_summary"):
-                summaries.append({
-                    "title": row.get("title", ""),
-                    "summary": row.get("cached_summary", ""),
-                    "community_id": row["community_id"],
-                })
+                summaries.append(
+                    {
+                        "title": row.get("title", ""),
+                        "summary": row.get("cached_summary", ""),
+                        "community_id": row["community_id"],
+                    }
+                )
             else:
                 s = self.get_summary(row["community_id"])
-                summaries.append({
-                    "title": s.get("title", ""),
-                    "summary": s.get("summary", ""),
-                    "community_id": row["community_id"],
-                })
+                summaries.append(
+                    {
+                        "title": s.get("title", ""),
+                        "summary": s.get("summary", ""),
+                        "community_id": row["community_id"],
+                    }
+                )
         return summaries
 
     def _get_cached(self, community_id: str) -> dict | None:
@@ -205,17 +213,20 @@ Respond as JSON:
         return result[0] if result else None
 
     def _cache_summary(self, community_id: str, summary: dict):
-        self.neo4j.query("""
+        self.neo4j.query(
+            """
             MATCH (c:Community {id: $cid})
             SET c.title = $title,
                 c.summary = $summary,
                 c.rank = $rank,
                 c.key_findings = $findings,
                 c.summarized_at = datetime()
-        """, params={
-            "cid": community_id,
-            "title": summary.get("title", ""),
-            "summary": summary.get("summary", ""),
-            "rank": summary.get("rank", 0),
-            "findings": summary.get("key_findings", []),
-        })
+        """,
+            params={
+                "cid": community_id,
+                "title": summary.get("title", ""),
+                "summary": summary.get("summary", ""),
+                "rank": summary.get("rank", 0),
+                "findings": summary.get("key_findings", []),
+            },
+        )

@@ -3,6 +3,7 @@ Event handlers for Gradio UI.
 Connects UI inputs to orchestration layers.
 Includes streaming chat, HITL review, and Notebook management.
 """
+
 import json
 from typing import Any, Generator, List
 
@@ -19,7 +20,7 @@ async def handle_upload(
     neo4j_client,
     embedding_engine,
     config,
-    llm_gateway
+    llm_gateway,
 ) -> str:
     """Process uploaded files through the ingestion pipeline."""
     if not file_paths:
@@ -66,7 +67,7 @@ def handle_query_stream(
     search_mode: str,
     query_agent,
     embedding_engine,
-    llm_gateway
+    llm_gateway,
 ) -> Generator[Any, None, None]:
     """
     Streaming chat generator for Gradio.
@@ -81,17 +82,17 @@ def handle_query_stream(
     yield new_history + [
         {"role": "assistant", "content": "🔍 *Classifying query and embedding...*"}
     ]
-    
+
     query_emb = embedding_engine.embed_single(message)
 
     # 2. Agentic Retrieval & Routing (Status updates)
     if search_mode == "vector-only":
         search_mode = "local"
-        
+
     yield new_history + [
         {"role": "assistant", "content": "⛓️ *Navigating knowledge graph...*"}
     ]
-    
+
     # State needs conversation_history for the agent to use
     state = query_agent.invoke(
         {
@@ -100,19 +101,19 @@ def handle_query_stream(
             "search_mode": search_mode,
             "conversation_history": history,
             "iterations": 0,
-            "stream": True # Flag we set in router.py
+            "stream": True,  # Flag we set in router.py
         }
     )
 
     # 3. Yield Streaming Synthesis
     full_prompt = state.get("full_synthesis_prompt")
     system = state.get("system_prompt")
-    
+
     if not full_prompt:
         yield new_history + [
             {
                 "role": "assistant",
-                "content": "Error: Failed to generate synthesis prompt."
+                "content": "Error: Failed to generate synthesis prompt.",
             }
         ]
         return
@@ -128,8 +129,8 @@ def handle_query_stream(
     if sources_data:
         bot_message += "\n\n---\n**Sources:**\n"
         for src in sources_data:
-            t = src.get('type', 'source')
-            n = src.get('source', src.get('title', 'Unknown'))
+            t = src.get("type", "source")
+            n = src.get("source", src.get("title", "Unknown"))
             bot_message += f"- {t}: {n}\n"
         yield new_history + [{"role": "assistant", "content": bot_message}]
 
@@ -141,9 +142,7 @@ def create_notebook_callback(name: str, desc: str, nb_manager: NotebookManager):
     nb_manager.create(name, desc)
     all_nbs = nb_manager.list_all()
     # Gradio dropdown choices: list of (label, value)
-    choices = [
-        (f"{n.name} ({n.doc_count} docs)", n.id) for n in all_nbs
-    ]
+    choices = [(f"{n.name} ({n.doc_count} docs)", n.id) for n in all_nbs]
     return choices, f"Created notebook '{name}'"
 
 
@@ -153,9 +152,7 @@ def delete_notebook_callback(notebook_id: str, nb_manager: NotebookManager):
         return None, "No notebook selected."
     nb_manager.delete(notebook_id)
     all_nbs = nb_manager.list_all()
-    choices = [
-        (f"{n.name} ({n.doc_count} docs)", n.id) for n in all_nbs
-    ]
+    choices = [(f"{n.name} ({n.doc_count} docs)", n.id) for n in all_nbs]
     return choices, "Deleted notebook. Graph cleaned."
 
 
@@ -178,19 +175,17 @@ def save_schema_callback(
         return f"❌ Invalid JSON: {str(e)}"
 
 
-def export_graph_callback(
-    notebook_id: str, format: str, nb_manager: NotebookManager
-):
+def export_graph_callback(notebook_id: str, format: str, nb_manager: NotebookManager):
     if not notebook_id:
         return None
-    
+
     if format == "JSON":
         data = nb_manager.export_json(notebook_id)
         filename = f"graph_export_{notebook_id[:8]}.json"
     else:
         data = nb_manager.export_markdown(notebook_id)
         filename = f"graph_report_{notebook_id[:8]}.md"
-        
+
     path = f"./data/{filename}"
     with open(path, "w", encoding="utf-8") as f:
         f.write(data)

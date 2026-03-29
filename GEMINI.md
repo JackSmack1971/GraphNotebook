@@ -1,6 +1,7 @@
 # GraphNotebook
 
 ## Build & Test
+
 - Install: `uv sync --all-extras`
 - Test: `uv run pytest tests/ -x -q`
 - Lint: `uv run ruff check ./graphnotebook/ --select E,F,I`
@@ -10,10 +11,12 @@
 - Docker services: `docker compose up -d`
 
 ## Conventions
+
 - Use absolute imports exclusively: `from graphnotebook.module import X`
 - All config uses Pydantic Settings with `GN_` env prefix
 
 ## Critical Constraints
+
 - Store all Cypher queries exclusively in dedicated query modules (`graph/queries.py`, `graph/schema_init.py`, `retrieval/local_search.py`)
 - Use `SimpleKGPipeline(from_pdf=False)` exclusively — all documents are pre-parsed by `parsers.py`
 - Instantiate one `neo4j.Driver` in `main.py` and pass via dependency injection to all consumers
@@ -22,4 +25,5 @@
 - Load `SentenceTransformer` (BGE-M3, 1.1GB) once at startup and pass the `EmbeddingEngine` instance
 
 ## Architecture Source of Truth
+
 @docs/GRAPHNOTEBOOK_v1.1_FINAL.md

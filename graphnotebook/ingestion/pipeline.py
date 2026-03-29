@@ -53,23 +53,23 @@ async def parse_step(state: IngestionState) -> IngestionState:
         neo4j = state.get("neo4j_client")
         if neo4j:
             # Check for duplicate in this notebook
-            
+
             nb_id = state.get("notebook_id", "default")
             result = neo4j.query(
-                queries.CHECK_DOC_HASH, 
-                {"file_hash": parsed.file_hash, "notebook_id": nb_id}
+                queries.CHECK_DOC_HASH,
+                {"file_hash": parsed.file_hash, "notebook_id": nb_id},
             )
-            
+
             if result and result[0]["exists"]:
                 state["error"] = "Document already indexed in this notebook."
                 state["status"] = "failed"
                 return state
-                
+
             # If filename exists in this notebook but hash is different, delete old one
             old_docs = neo4j.query(
                 "MATCH (d:Document {filename: $filename, notebook_id: $notebook_id}) "
                 "RETURN d.id AS id",
-                {"filename": parsed.filename, "notebook_id": nb_id}
+                {"filename": parsed.filename, "notebook_id": nb_id},
             )
             for old in old_docs:
                 neo4j.query(queries.DELETE_DOC_CASCADE, {"doc_id": old["id"]})
@@ -96,7 +96,7 @@ async def chunk_step(state: IngestionState) -> IngestionState:
         doc = state["parsed_doc"]
         if not doc:
             raise ValueError("Parsed document missing in state")
-            
+
         state["chunks"] = chunker.chunk_text(doc.raw_text, doc_id=doc.file_hash[:8])
         state["status"] = "chunked"
     except Exception as e:
@@ -126,7 +126,7 @@ async def embed_and_store_step(state: IngestionState) -> IngestionState:
         doc = state["parsed_doc"]
         if not doc:
             raise ValueError("Parsed document missing in state")
-            
+
         doc_params = {
             "id": doc.file_hash,
             "notebook_id": state.get("notebook_id", "default"),
@@ -167,25 +167,25 @@ async def extract_kg_step(state: IngestionState) -> IngestionState:
     """Run schema-enforced entity/relationship extraction."""
     if state.get("error"):
         return state
-        
+
     try:
         cfg = state.get("config")
         llm_gateway = state.get("llm_gateway")
-        
+
         if not cfg or not llm_gateway:
             # Fallback if not injected properly, though we should inject it
             llm_gateway = LLMGateway("extraction")
-            
+
         kg = KGConstructor(settings=cfg, llm_gateway=llm_gateway)
-        
+
         # Ingest parsed text
         doc = state["parsed_doc"]
         if not doc:
             raise ValueError("Parsed document missing in state")
-        
+
         # Async run now native
         await kg.ingest_text(doc.raw_text)
-        
+
         # ── Safely count entities linked to this document ─────────────────────
         doc_id = doc.file_hash
         neo4j = state.get("neo4j_client")
@@ -195,7 +195,7 @@ async def extract_kg_step(state: IngestionState) -> IngestionState:
                     "MATCH (d:Document {id: $doc_id}) "
                     "OPTIONAL MATCH (d)-[:HAS_CHUNK]->(c:Chunk)-[:MENTIONS]->(e) "
                     "RETURN count(DISTINCT e) AS count",
-                    {"doc_id": doc_id}
+                    {"doc_id": doc_id},
                 )
                 # count_res is always a list; first row always exists
                 # because of OPTIONAL MATCH
@@ -213,7 +213,7 @@ async def extract_kg_step(state: IngestionState) -> IngestionState:
     except Exception as e:
         state["error"] = f"Extraction failed: {e}"
         state["status"] = "failed"
-        
+
     return state
 
 
@@ -221,20 +221,20 @@ async def resolve_entities_step(state: IngestionState) -> IngestionState:
     """Run entity deduplication via RapidFuzz."""
     if state.get("error"):
         return state
-        
+
     try:
         neo4j = state.get("neo4j_client")
         if not neo4j:
             raise ValueError("Neo4j client required for entity resolution")
-            
+
         resolver = EntityResolver(neo4j_client=neo4j, threshold=85.0)
         resolver.resolve_all()
-        
+
         state["status"] = "resolved"
     except Exception as e:
         state["error"] = f"Entity Resolution failed: {e}"
         state["status"] = "failed"
-        
+
     return state
 
 
@@ -243,21 +243,22 @@ async def detect_communities_step(state: IngestionState) -> IngestionState:
     # We always run it, wait, we should only run if entities were extracted
     if state.get("error"):
         return state
-        
+
     try:
         neo4j = state.get("neo4j_client")
         if not neo4j:
             raise ValueError("Neo4j client required for community detection")
-            
+
         manager = CommunityManager(neo4j_client=neo4j)
         manager.detect_communities()
-        
+
         state["status"] = "complete"
     except Exception as e:
         state["error"] = f"Community Detection failed: {e}"
         state["status"] = "failed"
-        
+
     return state
+
 
 # ── Build Graph ─────────────────────────────────────
 ingestion_workflow = StateGraph(IngestionState)

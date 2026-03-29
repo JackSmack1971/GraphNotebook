@@ -67,18 +67,53 @@ DEFAULT_ENTITIES = [
 # ── Default Relationship Types ──────────────────────
 
 DEFAULT_RELATIONS = [
-    RelationshipType(label="WORKS_FOR", description="Person is employed by or clearly affiliated with Organization."),  # noqa: E501
-    RelationshipType(label="FOUNDED", description="Person founded or co-founded Organization."),  # noqa: E501
-    RelationshipType(label="USES", description="An Entity uses, implements, or depends on a Technology or Concept."),  # noqa: E501
-    RelationshipType(label="RELATED_TO", description="A general semantic connection between two Entities. Use this when no other relation fits."),  # noqa: E501
-    RelationshipType(label="PART_OF", description="Component or subset relationship, such as a city in a country or a module in software."),  # noqa: E501
-    RelationshipType(label="LOCATED_IN", description="Geographic containment. For example, a Person or Organization based in a Location."),  # noqa: E501
-    RelationshipType(label="CAUSED_BY", description="Causal relationship where one Entity causes another Event or Concept."),  # noqa: E501
-    RelationshipType(label="PRECEDED_BY", description="Temporal ordering where one Event explicitly occurs before another."),  # noqa: E501
-    RelationshipType(label="MEASURED_BY", description="An Entity is measured by or defined quantitatively by a Metric."),  # noqa: E501
-    RelationshipType(label="COMPETES_WITH", description="Competitive relationship between Organizations, Technologies, or People."),  # noqa: E501
-    RelationshipType(label="COLLABORATES_WITH", description="Partnership, alliance, or collaboration between People or Organizations."),  # noqa: E501
-    RelationshipType(label="INFLUENCES", description="Directional influence where one Entity significantly impacts another."),  # noqa: E501
+    RelationshipType(
+        label="WORKS_FOR",
+        description="Person is employed by or clearly affiliated with Organization.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="FOUNDED", description="Person founded or co-founded Organization."
+    ),  # noqa: E501
+    RelationshipType(
+        label="USES",
+        description="An Entity uses, implements, or depends on a Technology or Concept.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="RELATED_TO",
+        description="A general semantic connection between two Entities. Use this when no other relation fits.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="PART_OF",
+        description="Component or subset relationship, such as a city in a country or a module in software.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="LOCATED_IN",
+        description="Geographic containment. For example, a Person or Organization based in a Location.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="CAUSED_BY",
+        description="Causal relationship where one Entity causes another Event or Concept.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="PRECEDED_BY",
+        description="Temporal ordering where one Event explicitly occurs before another.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="MEASURED_BY",
+        description="An Entity is measured by or defined quantitatively by a Metric.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="COMPETES_WITH",
+        description="Competitive relationship between Organizations, Technologies, or People.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="COLLABORATES_WITH",
+        description="Partnership, alliance, or collaboration between People or Organizations.",
+    ),  # noqa: E501
+    RelationshipType(
+        label="INFLUENCES",
+        description="Directional influence where one Entity significantly impacts another.",
+    ),  # noqa: E501
 ]
 
 
@@ -119,4 +154,6 @@ def build_schema_from_json(schema_json: dict):
         for r in schema_json.get("relationships", [])
     ] or DEFAULT_RELATIONS
 
-    return builder.create_schema_model(node_types=entities, relationship_types=relations)  # noqa: E501
+    return builder.create_schema_model(
+        node_types=entities, relationship_types=relations
+    )  # noqa: E501

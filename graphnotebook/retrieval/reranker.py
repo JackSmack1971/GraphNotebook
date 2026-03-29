@@ -33,12 +33,12 @@ class Reranker:
         """Rerank chunks by cross-encoder relevance score."""
         if not chunks:
             return []
-            
+
         pairs = [(query, chunk.text) for chunk in chunks]
         scores = self.model.predict(pairs)
-        
+
         # update objects directly
         for chunk, score in zip(chunks, scores):
             chunk.score = float(score)
-            
+
         return sorted(chunks, key=lambda c: c.score, reverse=True)[:top_k]

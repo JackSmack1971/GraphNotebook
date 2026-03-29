@@ -3,6 +3,7 @@ Text-to-Cypher using Neo4j native ai.text2cypher procedure (5.20+ via APOC).
 Falls back to LLM-generated Cypher if native procedure unavailable.
 """
 
+
 class Text2CypherRetriever:
     """Convert natural language to Cypher and execute."""
 
@@ -47,17 +48,17 @@ class Text2CypherRetriever:
         if not self.llm:
             return []
         schema_desc = self._get_schema_description()
-        
+
         system_prompt = (
             "Generate ONLY a valid Cypher query against neo4j based on "
             "the schema provided. Do NOT wrap in markdown fences."
         )
-        
+
         cypher = self.llm.invoke(
             prompt=f"Convert to Cypher:\\nQuestion: {nl}\\nSchema: {schema_desc}",
             system=system_prompt,
         )
-        
+
         cypher = (
             cypher.strip()
             .strip("`")
@@ -65,16 +66,16 @@ class Text2CypherRetriever:
             .removeprefix("cypher")
             .strip()
         )
-        
-        if '\n' in cypher:
+
+        if "\n" in cypher:
             # removing prefix from multi-line strings if LLM returns fences
-            lines = cypher.split('\n')
-            if 'cypher' in lines[0].lower() or '```' in lines[0]:
+            lines = cypher.split("\n")
+            if "cypher" in lines[0].lower() or "```" in lines[0]:
                 lines = lines[1:]
-            if lines and '```' in lines[-1]:
+            if lines and "```" in lines[-1]:
                 lines = lines[:-1]
-            cypher = '\n'.join(lines).strip()
-            
+            cypher = "\n".join(lines).strip()
+
         try:
             return self.neo4j.query(cypher)
         except Exception:

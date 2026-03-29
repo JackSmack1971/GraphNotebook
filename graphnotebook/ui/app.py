@@ -2,6 +2,7 @@
 Gradio application layout (Blocks) for Phase 4.
 Features: Notebook management, Interactive PyVis graph, Streaming chat, and HITL review.
 """
+
 import json
 
 import gradio as gr
@@ -26,23 +27,33 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
 
     nb_manager = NotebookManager(neo4j_client)
     query_agent = build_query_agent(neo4j_client)
-    
+
     # Default Schema for editor
     DEFAULT_SCHEMA = {
         "entities": [
-            "Person", "Organization", "Concept", "Technology", 
-            "Location", "Event", "Metric"
+            "Person",
+            "Organization",
+            "Concept",
+            "Technology",
+            "Location",
+            "Event",
+            "Metric",
         ],
         "relationships": [
-            "WORKS_FOR", "FOUNDED", "USES", "RELATED_TO", 
-            "PART_OF", "LOCATED_IN", "CAUSED_BY"
-        ]
+            "WORKS_FOR",
+            "FOUNDED",
+            "USES",
+            "RELATED_TO",
+            "PART_OF",
+            "LOCATED_IN",
+            "CAUSED_BY",
+        ],
     }
 
     with gr.Blocks(title="GraphNotebook", theme=gr.themes.Soft()) as app:
         # State variables
         current_nb_id = gr.State("")
-        
+
         gr.Markdown("# 🧠 GraphNotebook [Phase 4: Polish]")
         gr.Markdown(
             "*Enterprise-grade personal GraphRAG. Streaming, Visuals, and Management.*"
@@ -54,22 +65,15 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                 gr.Markdown("### 🏢 Notebook Selection")
                 with gr.Row():
                     notebook_dropdown = gr.Dropdown(
-                        label="Active Notebook",
-                        choices=[],
-                        interactive=True,
-                        scale=3
+                        label="Active Notebook", choices=[], interactive=True, scale=3
                     )
                     refresh_nb_btn = gr.Button("🔄", scale=1)
-                
+
                 with gr.Accordion("New/Delete Notebook", open=False):
                     new_nb_name = gr.Textbox(label="Name", placeholder="My New Project")
                     new_nb_desc = gr.Textbox(label="Description")
-                    create_nb_btn = gr.Button(
-                        "Create Notebook", variant="secondary"
-                    )
-                    delete_nb_btn = gr.Button(
-                        "Delete Current Notebook", variant="stop"
-                    )
+                    create_nb_btn = gr.Button("Create Notebook", variant="secondary")
+                    delete_nb_btn = gr.Button("Delete Current Notebook", variant="stop")
                     nb_op_status = gr.Markdown("")
 
                 gr.Markdown("### 📥 Ingestion")
@@ -82,7 +86,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                     upload_status = gr.Textbox(
                         label="Status", interactive=False, lines=3
                     )
-                
+
                 # HITL Review Section (Accordion that appears/opens on extraction)
                 with gr.Accordion("📝 Entity Review (HITL)", open=False):
                     gr.Markdown("Review extracted entities before resolution.")
@@ -90,7 +94,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                         headers=["Approve", "Name", "Type", "Description"],
                         datatype=["bool", "str", "str", "str"],
                         interactive=True,
-                        col_count=(4, "fixed")
+                        col_count=(4, "fixed"),
                     )
                     gr.Button("Approve & Continue", variant="primary")
 
@@ -114,7 +118,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                                 choices=["auto", "local", "global", "vector-only"],
                                 value="auto",
                                 label="Strategy",
-                                scale=2
+                                scale=2,
                             )
                             clear_chat_btn = gr.Button("Clear History", scale=1)
 
@@ -122,14 +126,14 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                     with gr.Tab("🕸️ Graph Explorer"):
                         with gr.Row():
                             viz_filter = gr.Textbox(
-                                placeholder="Filter by name...", 
-                                label="Search Graph", 
-                                scale=3
+                                placeholder="Filter by name...",
+                                label="Search Graph",
+                                scale=3,
                             )
                             refresh_viz_btn = gr.Button("Refresh View", scale=1)
-                        
+
                         graph_html = gr.HTML(label="Interactive Knowledge Graph")
-                        
+
                         with gr.Row():
                             export_json_btn = gr.Button("💾 Export JSON")
                             export_md_btn = gr.Button("📑 Export Markdown")
@@ -141,7 +145,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                         schema_editor = gr.Code(
                             value=json.dumps(DEFAULT_SCHEMA, indent=2),
                             language="json",
-                            label="JSON Schema Editor"
+                            label="JSON Schema Editor",
                         )
                         save_schema_btn = gr.Button("Save Schema", variant="primary")
                         reset_schema_btn = gr.Button("Reset to Default")
@@ -154,59 +158,63 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
             if not nb_id:
                 return "", "Select a notebook"
             # This needs update to scope by nb_id if we want, but global for now
-            stats = update_stats(neo4j_client) 
+            stats = update_stats(neo4j_client)
             return nb_id, stats
 
         notebook_dropdown.change(
             fn=on_nb_change,
             inputs=[notebook_dropdown],
-            outputs=[current_nb_id, stats_display]
+            outputs=[current_nb_id, stats_display],
         )
 
         create_nb_btn.click(
             fn=lambda n, d: create_notebook_callback(n, d, nb_manager),
             inputs=[new_nb_name, new_nb_desc],
-            outputs=[notebook_dropdown, nb_op_status]
+            outputs=[notebook_dropdown, nb_op_status],
         )
 
         delete_nb_btn.click(
             fn=lambda nb_id: delete_notebook_callback(nb_id, nb_manager),
             inputs=[current_nb_id],
-            outputs=[notebook_dropdown, nb_op_status]
+            outputs=[notebook_dropdown, nb_op_status],
         )
 
         refresh_nb_btn.click(
-            fn=lambda: refresh_notebooks(nb_manager),
-            outputs=[notebook_dropdown]
+            fn=lambda: refresh_notebooks(nb_manager), outputs=[notebook_dropdown]
         )
 
         # 2. Ingestion
         upload_btn.click(
             fn=handle_upload,
             inputs=[
-                file_upload, current_nb_id, gr.State(neo4j_client), 
-                gr.State(embedding_engine), gr.State(settings), 
-                gr.State(llm_gateway)
+                file_upload,
+                current_nb_id,
+                gr.State(neo4j_client),
+                gr.State(embedding_engine),
+                gr.State(settings),
+                gr.State(llm_gateway),
             ],
-            outputs=[upload_status]
+            outputs=[upload_status],
         ).then(
             fn=lambda nb_id: update_stats(neo4j_client),
             inputs=[current_nb_id],
-            outputs=[stats_display]
+            outputs=[stats_display],
         )
 
         # 3. Streaming Chat
         query_input.submit(
             fn=handle_query_stream,
             inputs=[
-                query_input, chatbot, current_nb_id, search_mode, 
-                gr.State(query_agent), gr.State(embedding_engine), 
-                gr.State(llm_gateway)
+                query_input,
+                chatbot,
+                current_nb_id,
+                search_mode,
+                gr.State(query_agent),
+                gr.State(embedding_engine),
+                gr.State(llm_gateway),
             ],
-            outputs=[chatbot]
-        ).then(
-            fn=lambda: "", outputs=[query_input]
-        )
+            outputs=[chatbot],
+        ).then(fn=lambda: "", outputs=[query_input])
 
         clear_chat_btn.click(lambda: [], None, chatbot, queue=False)
 
@@ -214,39 +222,33 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
         refresh_viz_btn.click(
             fn=update_viz_callback,
             inputs=[current_nb_id, gr.State(neo4j_client), viz_filter],
-            outputs=[graph_html]
+            outputs=[graph_html],
         )
 
         export_json_btn.click(
             fn=lambda nb_id: export_graph_callback(nb_id, "JSON", nb_manager),
             inputs=[current_nb_id],
-            outputs=[export_file]
+            outputs=[export_file],
         )
 
         export_md_btn.click(
             fn=lambda nb_id: export_graph_callback(nb_id, "MD", nb_manager),
             inputs=[current_nb_id],
-            outputs=[export_file]
+            outputs=[export_file],
         )
 
         # 5. Schema
         save_schema_btn.click(
-            fn=lambda nb_id, schema: save_schema_callback(
-                nb_id, schema, nb_manager
-            ),
+            fn=lambda nb_id, schema: save_schema_callback(nb_id, schema, nb_manager),
             inputs=[current_nb_id, schema_editor],
-            outputs=[schema_status]
+            outputs=[schema_status],
         )
-        
+
         reset_schema_btn.click(
-            fn=lambda: json.dumps(DEFAULT_SCHEMA, indent=2),
-            outputs=[schema_editor]
+            fn=lambda: json.dumps(DEFAULT_SCHEMA, indent=2), outputs=[schema_editor]
         )
 
         # Initialize list on load
-        app.load(
-            fn=lambda: refresh_notebooks(nb_manager), 
-            outputs=[notebook_dropdown]
-        )
+        app.load(fn=lambda: refresh_notebooks(nb_manager), outputs=[notebook_dropdown])
 
     return app

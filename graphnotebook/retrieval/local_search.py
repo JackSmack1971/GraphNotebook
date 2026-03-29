@@ -107,29 +107,33 @@ ORDER BY best_score DESC
 LIMIT $top_k
 """
 
+
 class LocalSearcher:
     """Execute complex retrieval queries returning structured chunks."""
 
     def __init__(self, neo4j_client):
         self.neo4j = neo4j_client
 
-    def search(self, query_embedding: List[float], top_k: int = 20) -> List[RetrievedChunk]:  # noqa: E501
+    def search(
+        self, query_embedding: List[float], top_k: int = 20
+    ) -> List[RetrievedChunk]:  # noqa: E501
         """Perform vector + graph traversal search."""
         results = self.neo4j.query(
-            LOCAL_SEARCH_CYPHER,
-            {"query_embedding": query_embedding, "top_k": top_k}
+            LOCAL_SEARCH_CYPHER, {"query_embedding": query_embedding, "top_k": top_k}
         )
         return self._parse_results(results)
 
-    def hybrid_search(self, query_embedding: List[float], query_text: str, top_k: int = 20) -> List[RetrievedChunk]:  # noqa: E501
+    def hybrid_search(
+        self, query_embedding: List[float], query_text: str, top_k: int = 20
+    ) -> List[RetrievedChunk]:  # noqa: E501
         """Perform hybrid vector + BM25 + graph traversal search."""
         results = self.neo4j.query(
             HYBRID_SEARCH_CYPHER,
             {
                 "query_embedding": query_embedding,
                 "query_text": query_text,
-                "top_k": top_k
-            }
+                "top_k": top_k,
+            },
         )
         return self._parse_results(results)
 
@@ -139,7 +143,9 @@ class LocalSearcher:
         for row in records:
             # Filter out null entities (from optional matches)
             entities = [e for e in row.get("entities", []) if e and e.get("name")]
-            relationships = [r for r in row.get("relationships", []) if r and r.get("source")]  # noqa: E501
+            relationships = [
+                r for r in row.get("relationships", []) if r and r.get("source")
+            ]  # noqa: E501
 
             chunks.append(
                 RetrievedChunk(
@@ -149,7 +155,7 @@ class LocalSearcher:
                     chunk_index=row["chunk_index"],
                     entities=entities,
                     relationships=relationships,
-                    community_context=row.get("community_title") or ""
+                    community_context=row.get("community_title") or "",
                 )
             )
         return chunks

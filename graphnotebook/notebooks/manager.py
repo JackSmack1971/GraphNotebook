@@ -1,6 +1,7 @@
 """
 Manager for Notebooks, the highest level organizing hierarchy for documents and schemas.
 """
+
 import json
 import uuid
 from dataclasses import dataclass
@@ -28,10 +29,7 @@ class NotebookManager:
         self.neo4j = neo4j_client
 
     def create(
-        self,
-        name: str,
-        description: str = "",
-        schema_json: str = None
+        self, name: str, description: str = "", schema_json: str = None
     ) -> Notebook:
         """Create a new notebook namespace."""
         nb_id = str(uuid.uuid4())
@@ -41,8 +39,8 @@ class NotebookManager:
                 "id": nb_id,
                 "name": name,
                 "description": description,
-                "schema_json": schema_json
-            }
+                "schema_json": schema_json,
+            },
         )
         n = result[0]["n"]
         return Notebook(
@@ -51,7 +49,7 @@ class NotebookManager:
             description=n.get("description"),
             schema_json=n.get("schema_json"),
             created_at=n.get("created_at"),
-            updated_at=n.get("updated_at")
+            updated_at=n.get("updated_at"),
         )
 
     def get(self, notebook_id: str) -> Optional[Notebook]:
@@ -66,7 +64,7 @@ class NotebookManager:
             description=n.get("description"),
             schema_json=n.get("schema_json"),
             created_at=n.get("created_at"),
-            updated_at=n.get("updated_at")
+            updated_at=n.get("updated_at"),
         )
 
     def list_all(self) -> List[Notebook]:
@@ -75,15 +73,17 @@ class NotebookManager:
         notebooks = []
         for r in result:
             n = r["n"]
-            notebooks.append(Notebook(
-                id=n.get("id"),
-                name=n.get("name", "Untitled"),
-                description=n.get("description", ""),
-                schema_json=n.get("schema_json"),
-                created_at=n.get("created_at"),
-                updated_at=n.get("updated_at"),
-                doc_count=r.get("doc_count", 0)
-            ))
+            notebooks.append(
+                Notebook(
+                    id=n.get("id"),
+                    name=n.get("name", "Untitled"),
+                    description=n.get("description", ""),
+                    schema_json=n.get("schema_json"),
+                    created_at=n.get("created_at"),
+                    updated_at=n.get("updated_at"),
+                    doc_count=r.get("doc_count", 0),
+                )
+            )
         return notebooks
 
     def update(
@@ -91,7 +91,7 @@ class NotebookManager:
         notebook_id: str,
         name: str = None,
         description: str = None,
-        schema_json: str = None
+        schema_json: str = None,
     ) -> Optional[Notebook]:
         """Update notebook details."""
         params = {"id": notebook_id}
@@ -112,14 +112,14 @@ class NotebookManager:
             description=n.get("description"),
             schema_json=n.get("schema_json"),
             created_at=n.get("created_at"),
-            updated_at=n.get("updated_at")
+            updated_at=n.get("updated_at"),
         )
 
     def delete(self, notebook_id: str):
         """Cascade delete notebook and clean orphans."""
         self.neo4j.query(queries.DELETE_NOTEBOOK_CASCADE, params={"id": notebook_id})
         self.neo4j.query(queries.CLEANUP_ORPHANED_ENTITIES)
-        
+
     def get_schema(self, notebook_id: str) -> Optional[Dict[str, Any]]:
         """Return parsed schema dict or None."""
         nb = self.get(notebook_id)
@@ -145,34 +145,33 @@ class NotebookManager:
         entities = self.neo4j.query(queries.EXPORT_ENTITIES_JSON)
         rels = self.neo4j.query(queries.EXPORT_RELATIONSHIPS_JSON)
         communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON)
-        
+
         nb = self.get(notebook_id)
-        
+
         export_data = {
             "metadata": {
                 "notebook_id": notebook_id,
                 "notebook_name": nb.name if nb else "Unknown",
-                "export_date": datetime.now().isoformat()
+                "export_date": datetime.now().isoformat(),
             },
             "entities": entities,
             "relationships": rels,
-            "communities": communities
+            "communities": communities,
         }
         return json.dumps(export_data, indent=2)
 
     def export_markdown(self, notebook_id: str) -> str:
         """Export a structured markdown report of the graph's communities and schema."""
         communities = self.neo4j.query(queries.EXPORT_COMMUNITIES_JSON)
-        
+
         # Sort by level (highest logical grouping first) and entity count
         communities.sort(
-            key=lambda x: (x.get("level", 0), x.get("entity_count", 0)),
-            reverse=True
+            key=lambda x: (x.get("level", 0), x.get("entity_count", 0)), reverse=True
         )
-        
+
         nb = self.get(notebook_id)
         md = f"# Knowledge Graph Report: {nb.name if nb else 'GraphNotebook'}\n\n"
-        
+
         md += "## Communities\n\n"
         for c in communities:
             md += (
@@ -180,11 +179,11 @@ class NotebookManager:
                 f"(Level {c.get('level', 0)})\n"
             )
             md += f"**Entities:** {c.get('entity_count', 0)}\n\n"
-            
-            summary = c.get('summary')
+
+            summary = c.get("summary")
             if summary:
                 md += f"{summary}\n\n"
             else:
                 md += "*No summary available.*\n\n"
-                
+
         return md

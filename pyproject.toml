@@ -9,7 +9,7 @@ dependencies = [
     "pydantic-settings>=2.2.0",
     "gradio>=5.0.0",
     "neo4j>=5.20.0",
-    "litellm>=1.0.0",
+    "litellm[caching]>=1.0.0",
     "sentence-transformers>=3.0.0",
     "langgraph>=0.0.10",
     "pymupdf>=1.23.0",
@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
     "ruff>=0.3.0"
 ]
 

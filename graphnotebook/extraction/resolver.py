@@ -22,11 +22,11 @@ class EntityResolver:
         """
         # We group by labels instead of explicitly finding "type"
         # The neo4j-graphrag node label is usually the specific type (e.g., :Person).
-        
+
         # We need a robust query to find standard entities.
         # We'll fetch all nodes that have an ID and a Name, and then resolve them,
         # grouped by their primary label.
-        
+
         labels_result = self.neo4j.query("CALL db.labels() YIELD label RETURN label")
         # Filter typical non-entity labels
         non_entities = ["Document", "Chunk", "Notebook", "Community", "Entity"]
@@ -58,7 +58,7 @@ class EntityResolver:
                 continue
 
             # Find matching names further down the list
-            similar_names = names[i + 1:]
+            similar_names = names[i + 1 :]
             if not similar_names:
                 break
 
@@ -77,7 +77,8 @@ class EntityResolver:
 
     def _merge_entities(self, keep_id: str, merge_id: str, label: str):
         """Merge merge_id entity into keep_id entity in Neo4j."""
-        self.neo4j.query(f"""
+        self.neo4j.query(
+            f"""
             MATCH (keep:`{label}` {{id: $keep_id}})
             MATCH (merge:`{label}` {{id: $merge_id}})
 
@@ -104,4 +105,6 @@ class EntityResolver:
 
             // Delete merged entity
             DETACH DELETE merge
-        """, parameters={"keep_id": keep_id, "merge_id": merge_id})
+        """,
+            parameters={"keep_id": keep_id, "merge_id": merge_id},
+        )

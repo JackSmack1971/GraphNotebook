@@ -3,7 +3,6 @@ Context assembly with source attribution.
 Builds the final context string for LLM synthesis.
 """
 
-
 from typing import List, Optional
 
 from .reranker import RetrievedChunk
@@ -12,7 +11,9 @@ from .reranker import RetrievedChunk
 class ContextBuilder:
     """Assemble retrieval results into structured context for LLM."""
 
-    def build(self, chunks: Optional[List[RetrievedChunk]] = None, summaries: list = None) -> str:  # noqa: E501
+    def build(
+        self, chunks: Optional[List[RetrievedChunk]] = None, summaries: list = None
+    ) -> str:  # noqa: E501
         """Build context string from chunks and community summaries."""
         parts = []
 
@@ -31,7 +32,8 @@ class ContextBuilder:
                 if entities:
                     entity_strs = [
                         f"  - {e.get('name', 'Unknown')} ({e.get('type', 'Unknown')})"
-                        for e in entities if isinstance(e, dict)
+                        for e in entities
+                        if isinstance(e, dict)
                     ]
                     if entity_strs:
                         parts.append("Entities explicitly mentioned in this passage:\n")

@@ -1,6 +1,7 @@
 """
 Reusable UI components for Gradio, including Graph visualizations and HITL tables.
 """
+
 from pyvis.network import Network
 
 from graphnotebook.graph.neo4j_client import Neo4jClient
@@ -21,17 +22,17 @@ def create_graph_visualization(
     """
     if entity_filter:
         query += " AND toLower(e.id) CONTAINS toLower($filter)"
-    
+
     query += """
     RETURN e.id AS id, labels(e)[0] AS type, 
            e.description AS description, e.mention_count AS mc
     ORDER BY e.mention_count DESC
     LIMIT 100
     """
-    
+
     params = {"filter": entity_filter} if entity_filter else {}
     entities = neo4j_client.query(query, params)
-    
+
     if not entities:
         return (
             "<div style='padding:20px; text-align:center;'>"
@@ -53,20 +54,20 @@ def create_graph_visualization(
         height="600px",
         width="100%",
         notebook=True,
-        cdn_resources='in_line',
+        cdn_resources="in_line",
         bgcolor="#ffffff",
-        font_color="#333333"
+        font_color="#333333",
     )
-    
+
     # Color mapping
     colors = {
-        "Person": "#3b82f6",       # Blue
-        "Organization": "#10b981", # Green
-        "Technology": "#a855f7",   # Purple
-        "Concept": "#f59e0b",      # Orange
-        "Location": "#ef4444",      # Red
-        "Event": "#eab308",         # Yellow
-        "Metric": "#6b7280"         # Gray
+        "Person": "#3b82f6",  # Blue
+        "Organization": "#10b981",  # Green
+        "Technology": "#a855f7",  # Purple
+        "Concept": "#f59e0b",  # Orange
+        "Location": "#ef4444",  # Red
+        "Event": "#eab308",  # Yellow
+        "Metric": "#6b7280",  # Gray
     }
 
     for e in entities:
@@ -96,7 +97,7 @@ def create_graph_visualization(
       }
     }
     """)
-    
+
     return net.generate_html()
 
 
@@ -107,10 +108,12 @@ def create_entity_review_table(entities: list) -> list:
     """
     rows = []
     for e in entities:
-        rows.append({
-            "Approve": True,
-            "Name": e.get("name", "Unknown"),
-            "Type": e.get("type", "Concept"),
-            "Description": e.get("description", "")
-        })
+        rows.append(
+            {
+                "Approve": True,
+                "Name": e.get("name", "Unknown"),
+                "Type": e.get("type", "Concept"),
+                "Description": e.get("description", ""),
+            }
+        )
     return rows
