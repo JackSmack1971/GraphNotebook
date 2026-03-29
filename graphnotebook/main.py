@@ -48,7 +48,13 @@ def main():
         )
 
         # Launch non-blocking (or blocking based on use case, here we block)
-        app.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
+        app.launch(
+            server_name="0.0.0.0",
+            server_port=7860,
+            theme=gr.themes.Soft(),
+            share=False,
+            show_error=True,
+        )
     finally:
         # Graceful shutdown
         print("Shutting down Neo4j client...")

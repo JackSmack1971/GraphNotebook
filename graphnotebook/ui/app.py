@@ -50,7 +50,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
         ],
     }
 
-    with gr.Blocks(title="GraphNotebook", theme=gr.themes.Soft()) as app:
+    with gr.Blocks(title="GraphNotebook") as app:
         # State variables
         current_nb_id = gr.State("")
 
@@ -93,6 +93,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                     datatype=["str", "str", "number", "str", "str"],
                     interactive=False,
                     label="Documents in this Notebook",
+                    column_count=(5, "fixed"),
                 )
 
                 # HITL Review Section (Accordion that appears/opens on extraction)
@@ -102,7 +103,7 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                         headers=["Approve", "Name", "Type", "Description"],
                         datatype=["bool", "str", "str", "str"],
                         interactive=True,
-                        col_count=(4, "fixed"),
+                        column_count=(4, "fixed"),
                     )
                     gr.Button("Approve & Continue", variant="primary")
 
@@ -115,7 +116,8 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                     # Tab 1: Streaming Chat
                     with gr.Tab("💬 Chat"):
                         chatbot = gr.Chatbot(
-                            height=500, show_copy_button=True, type="messages"
+                            height=500, 
+                            buttons=["copy"],
                         )
                         query_input = gr.Textbox(
                             placeholder="Ask a question...",
