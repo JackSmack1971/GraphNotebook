@@ -146,6 +146,20 @@ def test_cache_summary_writes_all_fields(community_manager, mock_neo4j):
     assert params.get("rank") == 3
 
 
+def test_cache_summary_uses_zero_rank_when_key_absent(community_manager, mock_neo4j):
+    mock_neo4j.query.return_value = []
+    summary = {"title": "T", "summary": "S", "key_findings": []}
+    # No "rank" key — default must be 0
+    community_manager._cache_summary("cid_z", summary)
+    call_args = mock_neo4j.query.call_args
+    params = (
+        call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+    )
+    assert params.get("rank") == 0, (
+        "Missing 'rank' key must default to 0, not any other value"
+    )
+
+
 def test_detect_communities_returns_quality_metrics(community_manager, mock_neo4j):
     """detect_communities must return Leiden metrics as a non-empty result list."""
     mock_neo4j.query.return_value = [{"communityCount": 5, "modularity": 0.4}]

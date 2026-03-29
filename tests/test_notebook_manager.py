@@ -51,7 +51,10 @@ def test_get_by_id_not_found_returns_none(manager, mock_neo4j):
 
 
 def test_create_returns_notebook_with_correct_name(manager, mock_neo4j):
-    mock_neo4j.query.return_value = []   # CREATE returns nothing meaningful
+    # CREATE_NOTEBOOK query (queries.py:131) returns 'n'
+    mock_neo4j.query.return_value = [
+        {"n": {"id": "new_id", "name": "Research", "description": "Desc"}}
+    ]
     nb = manager.create("Research", "My research notebook")
     assert nb.name == "Research"
 
@@ -78,17 +81,18 @@ def test_notebook_isolation_queries_use_correct_id(manager, mock_neo4j):
     all_calls = mock_neo4j.query.call_args_list
     assert all_calls, "NotebookManager.create must call neo4j.query at least once"
 
-    # Collect all parameter dicts passed to neo4j.query(cypher, params)
     param_values: list[str] = []
     for call in all_calls:
-        args = call.args      # positional args: (cypher,) or (cypher, params)
-        kwargs = call.kwargs  # keyword args: may include parameters={}
-        if len(args) > 1 and isinstance(args[1], dict):
-            param_values.extend(str(v) for v in args[1].values())
-        if "parameters" in kwargs and isinstance(kwargs["parameters"], dict):
-            param_values.extend(str(v) for v in kwargs["parameters"].values())
-        if "params" in kwargs and isinstance(kwargs["params"], dict):
-            param_values.extend(str(v) for v in kwargs["params"].values())
+        # Extract params from positional or keywords (params, parameters)
+        ps = {}
+        if len(call.args) > 1 and isinstance(call.args[1], dict):
+            ps.update(call.args[1])
+        if "params" in call.kwargs and isinstance(call.kwargs["params"], dict):
+            ps.update(call.kwargs["params"])
+        if "parameters" in call.kwargs and isinstance(call.kwargs["parameters"], dict):
+            ps.update(call.kwargs["parameters"])
+            
+        param_values.extend(str(v) for v in ps.values())
 
     assert any("NB2" in v for v in param_values), (
         "Notebook name 'NB2' was not found in any bound parameter value. "
@@ -141,4 +145,25 @@ def test_rename_passes_correct_id_and_name(manager, mock_neo4j):
     )
     assert any("New Name" in v for v in all_param_values), (
         "New name 'New Name' not found in rename() query parameters"
+    )
+
+
+def test_markdown_export_sorts_communities_by_level():
+    """Communities must be sorted by level (High->Low) and entity count in MD export."""
+    mock_neo4j = MagicMock()
+    # 1. EXPORT_COMMUNITIES_JSON call
+    # 2. GET_NOTEBOOK call
+    mock_neo4j.query.side_effect = [
+        [
+            {"title": "LowLevel", "level": 0, "entity_count": 2, "summary": "Low."},
+            {"title": "HighLevel", "level": 2, "entity_count": 10, "summary": "High."},
+        ],
+        [{"n": {"id": "N1", "name": "Test", "created_at": None, "updated_at": None}}],
+    ]
+    manager = NotebookManager(mock_neo4j)
+    md = manager.export_markdown("N1")
+    high_pos = md.find("HighLevel")
+    low_pos = md.find("LowLevel")
+    assert high_pos < low_pos, (
+        "Higher-level community must appear first after sort(reverse=True)"
     )

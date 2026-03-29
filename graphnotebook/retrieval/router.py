@@ -8,6 +8,7 @@ from typing import Literal, TypedDict, List
 
 from langgraph.graph import END, StateGraph
 
+from graphnotebook.llm.embeddings import EmbeddingEngine
 from graphnotebook.llm.gateway import LLMGateway
 from graphnotebook.retrieval.context_builder import ContextBuilder
 from graphnotebook.retrieval.global_search import GlobalSearcher
@@ -47,7 +48,8 @@ def build_query_agent(neo4j_client):
     Builds the state graph using the provided neo4j client.
     Closes over searcher instances.
     """
-    local_searcher = LocalSearcher(neo4j_client)
+    embedding_engine = EmbeddingEngine()
+    local_searcher = LocalSearcher(neo4j_client, embedding_engine=embedding_engine)
     global_searcher = GlobalSearcher(neo4j_client, llm_gateway=synthesis_llm)
     text2cypher_retriever = Text2CypherRetriever(neo4j_client, llm_gateway=synthesis_llm)
 
@@ -80,8 +82,9 @@ Respond: {{"mode": "local|global|hybrid"}}"""
             state["community_summaries"] = []
 
         if mode in ("local", "hybrid"):
-            raw_chunks = local_searcher.search(
-                query_embedding=state["query_embedding"],
+            raw_chunks = local_searcher.hybrid_search(
+                query_text=state["query"],
+                query_embedding=state.get("query_embedding"),
                 top_k=20,
                 notebook_id=notebook_id,
             )
@@ -153,7 +156,7 @@ Respond: {{"mode": "local|global|hybrid"}}"""
         # Normal synthesis assembly
         context = context_builder.build(
             chunks=state.get("retrieved_chunks", []),
-            summaries=state.get("community_summaries", []),
+            community_summaries=state.get("community_summaries", []),
         )
         
         history_text = ""

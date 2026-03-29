@@ -22,6 +22,8 @@ from graphnotebook.retrieval.global_search import GlobalSearcher
 @pytest.fixture()
 def global_searcher(mock_neo4j, mock_llm):
     """GlobalSearcher wired with mock CommunityManager internals."""
+    # Pre-mock invoke_json to return a valid dict
+    mock_llm.invoke_json.return_value = {"score": 5, "answer": "Partial answer."}
     searcher = GlobalSearcher(neo4j_client=mock_neo4j, llm_gateway=mock_llm)
     # Patch the internal community_manager so no real Neo4j calls are made
     searcher.community_manager = MagicMock()
@@ -43,9 +45,11 @@ def test_search_returns_context_string(global_searcher):
         _make_summary("Cluster A", "Entities in cluster A discuss topic X."),
         _make_summary("Cluster B", "Cluster B contains related concepts."),
     ]
+    mock_llm.invoke_json.return_value = {"score": 5, "answer": "Topic X info."}
     result = global_searcher.search("what is topic X?", query_embedding=[0.1] * 1024)
 
     assert "context" in result, "search() must return a dict with a 'context' key"
+    assert "answer" in result
     assert isinstance(result["context"], str)
     assert len(result["context"]) > 0, "context must not be empty when summaries exist"
 
@@ -65,6 +69,7 @@ def test_search_includes_summary_titles_in_context(global_searcher):
     global_searcher.community_manager.get_relevant_summaries.return_value = [
         _make_summary("UniqueClusterTitle", "Body text about the cluster."),
     ]
+    mock_llm.invoke_json.return_value = {"score": 8, "answer": "Unique info."}
     result = global_searcher.search("q", query_embedding=[0.1] * 1024)
     assert "UniqueClusterTitle" in result["context"], (
         "Community title 'UniqueClusterTitle' must be present in assembled context"
@@ -96,9 +101,11 @@ def test_search_higher_ranked_summaries_appear_first(global_searcher):
     ]
     result = global_searcher.search("q", query_embedding=[0.1] * 1024)
     ctx = result["context"]
+    # REMOVE the conditional guard — assert unconditionally:
+    assert "HighRank" in ctx, "HighRank title must appear in assembled context"
+    assert "LowRank" in ctx, "LowRank title must appear in assembled context"
     high_pos = ctx.find("HighRank")
     low_pos = ctx.find("LowRank")
-    if high_pos != -1 and low_pos != -1:
-        assert high_pos < low_pos, (
-            "Higher-rank community summaries must appear before lower-rank ones"
-        )
+    assert high_pos < low_pos, (
+        "Higher-rank community summaries must appear before lower-rank ones"
+    )

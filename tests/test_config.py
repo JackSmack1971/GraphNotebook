@@ -99,3 +99,13 @@ def test_settings_cross_encoder_is_non_empty_string():
     s = Settings()
     assert isinstance(s.cross_encoder_model, str)
     assert len(s.cross_encoder_model) > 0
+
+
+def test_settings_retrieval_exact_values():
+    s = Settings()
+    assert s.local_top_k == 20, f"Expected 20, got {s.local_top_k}"
+    assert s.rerank_top_k == 8, f"Expected 8, got {s.rerank_top_k}"
+    assert (
+        s.max_context_tokens == 4000
+    ), f"Expected 4000, got {s.max_context_tokens}"
+    assert s.global_top_communities == 5

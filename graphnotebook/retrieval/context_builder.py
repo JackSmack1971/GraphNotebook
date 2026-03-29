@@ -12,7 +12,7 @@ class ContextBuilder:
     """Assemble retrieval results into structured context for LLM."""
 
     def build(
-        self, chunks: Optional[List[RetrievedChunk]] = None, summaries: list = None
+        self, chunks: Optional[List[RetrievedChunk]] = None, community_summaries: list = None
     ) -> str:  # noqa: E501
         """Build context string from chunks and community summaries."""
         parts = []
@@ -55,9 +55,9 @@ class ContextBuilder:
 
                 parts.append("---\n")
 
-        if summaries:
+        if community_summaries:
             parts.append("## Relevant Graph Communities\n")
-            for s in summaries:
+            for s in community_summaries:
                 parts.append(f"### {s['title']}\n{s['summary']}\n---\n")
 
         return "\n".join(parts)

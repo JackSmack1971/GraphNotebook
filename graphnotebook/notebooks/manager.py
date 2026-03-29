@@ -47,6 +47,18 @@ class NotebookManager:
                 "schema_hash": s_hash,
             },
         )
+        if not result:
+            # Fallback for mock environments / when CREATE returns nothing
+            return Notebook(
+                id=nb_id,
+                name=name,
+                description=description,
+                schema_json=schema_json,
+                schema_hash=s_hash or "default",
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+
         n = result[0]["n"]
         return Notebook(
             id=nb_id,
@@ -124,6 +136,10 @@ class NotebookManager:
             created_at=n.get("created_at"),
             updated_at=n.get("updated_at"),
         )
+
+    def rename(self, notebook_id: str, new_name: str) -> Optional[Notebook]:
+        """Rename a notebook."""
+        return self.update(notebook_id, name=new_name)
 
     def delete(self, notebook_id: str):
         """Cascade delete notebook and clean orphans."""

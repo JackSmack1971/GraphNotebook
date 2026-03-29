@@ -10,6 +10,8 @@ from graphnotebook.ingestion.pipeline import (
     embed_and_store_step,
     extract_kg_step,
     resolve_entities_step,
+    should_chunk,
+    should_resolve,
 )
 from graphnotebook.ingestion.parsers import PageContent, ParsedDocument
 
@@ -130,3 +132,59 @@ async def test_detect_communities_step_calls_manager(mock_neo4j, mock_llm):
         mock_cm_cls.return_value = mock_cm
         result = await detect_communities_step(state)
     mock_cm.detect_communities.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Priority 1: Routing Functions
+# ---------------------------------------------------------------------------
+
+
+def test_should_chunk_returns_end_on_error():
+    assert should_chunk({"error": "boom", "status": "failed"}) == "end"
+
+
+def test_should_chunk_returns_chunk_on_clean_state():
+    assert (
+        should_chunk({"parsed_doc": object(), "status": "parsed"}) == "chunk"
+    )
+
+
+def test_should_chunk_skips_to_extract_kg_when_skip_chunking():
+    assert (
+        should_chunk({"skip_chunking": True, "status": "parsed"}) == "extract_kg"
+    )
+
+
+def test_should_resolve_returns_end_on_error():
+    assert should_resolve({"error": "fail", "status": "failed"}) == "end"
+
+
+def test_should_resolve_returns_resolve_on_clean():
+    assert should_resolve({"status": "extracted"}) == "resolve"
+
+
+# ---------------------------------------------------------------------------
+# Priority 2: Error Passthrough
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_detect_communities_step_passthrough_on_error():
+    state = {"error": "upstream boom", "status": "failed"}
+    result = await detect_communities_step(state)
+    assert result["error"] == "upstream boom"
+    assert result["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_embed_and_store_step_passthrough_on_error():
+    state = {"error": "parse failed", "status": "failed"}
+    result = await embed_and_store_step(state)
+    assert result["error"] == "parse failed"
+
+
+@pytest.mark.asyncio
+async def test_extract_kg_step_passthrough_on_error():
+    state = {"error": "embed failed", "status": "failed"}
+    result = await extract_kg_step(state)
+    assert result["error"] == "embed failed"

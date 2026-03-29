@@ -23,8 +23,8 @@ class GlobalSearcher:
         self.llm = llm_gateway or LLMGateway("synthesis")
 
     def search(
-        self, query: str, query_embedding: list, top_communities: int = 5, notebook_id: str = None
-    ) -> str:
+        self, query: str, query_embedding: list, top_n: int = 5, notebook_id: str = None
+    ) -> dict:
         """
         Execute map-reduce global search.
         1. Find relevant communities
@@ -33,11 +33,14 @@ class GlobalSearcher:
         """
         # 1. Fetch relevant lazy summaries
         summaries = self.community_manager.get_relevant_summaries(
-            query_embedding, top_n=top_communities, notebook_id=notebook_id
+            query_embedding, top_n=top_n, notebook_id=notebook_id
         )
 
         if not summaries:
-            return "No relevant community info found to answer this global query."
+            return {
+                "answer": "No relevant community info found to answer this global query.",
+                "context": "",
+            }
 
         # 2. Map Phase: Extract partial answers
         partial_answers = []
@@ -77,7 +80,10 @@ Respond in JSON format:
         )
 
         if not partial_answers:
-            return "Communities did not contain relevant information for this query."
+            return {
+                "answer": "Communities did not contain relevant information for this query.",
+                "context": "",
+            }
 
         # 3. Reduce Phase: Synthesize final answer
         context_parts = []
@@ -100,4 +106,4 @@ Cite the community titles when referencing evidence.""",
             system="You are an expert synthesizer. Provide comprehensive overviews.",
         )
 
-        return final_answer
+        return {"answer": final_answer, "context": final_context}
