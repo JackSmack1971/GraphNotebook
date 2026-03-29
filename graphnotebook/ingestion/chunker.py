@@ -39,62 +39,83 @@ class SemanticChunker:
 
     def chunk_text(self, text: str, doc_id: str = "") -> List[Chunk]:
         """Split text into overlapping chunks at paragraph boundaries."""
-        paragraphs = text.split("\n\n")
+        if not text:
+            return []
+
+        # Find paragraphs and their absolute start positions in original text
+        paras_with_offsets = []
+        last_pos = 0
+        for p in text.split("\n\n"):
+            # find where this paragraph actually starts (skip potential leading \n)
+            start_in_text = text.find(p, last_pos)
+            paras_with_offsets.append({
+                "text": p,
+                "start": start_in_text,
+                "end": start_in_text + len(p)
+            })
+            last_pos = start_in_text + len(p)
+
         chunks = []
-        current_tokens = []
-        current_text_parts = []
-        current_start = 0
+        current_paras = []
+        current_tokens_count = 0
         chunk_index = 0
 
-        for para in paragraphs:
-            para = para.strip()
-            if not para:
-                continue
-
-            para_tokens = self.enc.encode(para)
-
-            # If adding this paragraph exceeds chunk_size, flush
-            if (
-                current_tokens
-                and len(current_tokens) + len(para_tokens) > self.chunk_size
-            ):
-                chunk_text = "\n\n".join(current_text_parts)
-                chunks.append(
-                    Chunk(
-                        id=f"{doc_id}_chunk_{chunk_index:04d}",
-                        text=chunk_text,
-                        chunk_index=chunk_index,
-                        start_char=current_start,
-                        end_char=current_start + len(chunk_text),
-                        token_count=len(current_tokens),
-                    )
-                )
+        for p_info in paras_with_offsets:
+            p_text = p_info["text"]
+            p_tokens = self.enc.encode(p_text)
+            
+            # If adding this exceeds chunk_size, flush
+            if current_paras and (current_tokens_count + len(p_tokens) > self.chunk_size):
+                # Build current chunk
+                c_start = current_paras[0]["start"]
+                c_end = current_paras[-1]["end"]
+                c_text = text[c_start:c_end]
+                
+                chunks.append(Chunk(
+                    id=f"{doc_id}_chunk_{chunk_index:04d}",
+                    text=c_text,
+                    chunk_index=chunk_index,
+                    start_char=c_start,
+                    end_char=c_end,
+                    token_count=current_tokens_count,
+                ))
                 chunk_index += 1
 
-                # Overlap: keep last N tokens worth of text
-                # We do this by decoding the last chunk_overlap tokens, but it's simpler
-                # to just keep overlapping text at paragraph bound if possible.
-                # Here we just decode the last N tokens:
-                overlap_text = self.enc.decode(current_tokens[-self.chunk_overlap :])
-                current_tokens = self.enc.encode(overlap_text)
-                current_text_parts = [overlap_text]
-                current_start = current_start + len(chunk_text) - len(overlap_text)
+                # Overlap: find how many paragraphs we need to keep to satisfy chunk_overlap
+                # We work backwards from the end of current_paras
+                overlap_paras = []
+                overlap_tokens_count = 0
+                for op in reversed(current_paras):
+                    op_tokens_len = len(self.enc.encode(op["text"]))
+                    if overlap_tokens_count + op_tokens_len <= self.chunk_overlap:
+                        overlap_paras.insert(0, op)
+                        overlap_tokens_count += op_tokens_len
+                    else:
+                        break
+                
+                # If no full paragraph fits in overlap, just take the last one anyway to avoid gaps
+                if not overlap_paras and current_paras:
+                    overlap_paras = [current_paras[-1]]
+                    overlap_tokens_count = len(self.enc.encode(current_paras[-1]["text"]))
 
-            current_tokens.extend(para_tokens)
-            current_text_parts.append(para)
+                current_paras = overlap_paras
+                current_tokens_count = overlap_tokens_count
+
+            current_paras.append(p_info)
+            current_tokens_count += len(p_tokens)
 
         # Flush remaining
-        if current_text_parts:
-            chunk_text = "\n\n".join(current_text_parts)
-            chunks.append(
-                Chunk(
-                    id=f"{doc_id}_chunk_{chunk_index:04d}",
-                    text=chunk_text,
-                    chunk_index=chunk_index,
-                    start_char=current_start,
-                    end_char=current_start + len(chunk_text),
-                    token_count=len(current_tokens),
-                )
-            )
+        if current_paras:
+            c_start = current_paras[0]["start"]
+            c_end = current_paras[-1]["end"]
+            c_text = text[c_start:c_end]
+            chunks.append(Chunk(
+                id=f"{doc_id}_chunk_{chunk_index:04d}",
+                text=c_text,
+                chunk_index=chunk_index,
+                start_char=c_start,
+                end_char=c_end,
+                token_count=current_tokens_count,
+            ))
 
         return chunks

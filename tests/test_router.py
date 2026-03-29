@@ -100,7 +100,7 @@ def test_evaluate_sufficiency_triggers_retry_on_empty():
         patch("graphnotebook.retrieval.router.Text2CypherRetriever") as mock_t2c_cls,
     ):
         mock_ls = MagicMock()
-        mock_ls.hybrid_search.return_value = []  # empty → triggers retry
+        mock_ls.search.return_value = []  # Changed from hybrid_search to search
         mock_ls_cls.return_value = mock_ls
 
         mock_gs = MagicMock()
@@ -131,15 +131,51 @@ def test_evaluate_sufficiency_triggers_retry_on_empty():
 
 def test_retry_broader_wraps_cypher_results_as_chunks(agent_and_mocks):
     """Cypher dicts from text2cypher must be wrapped into RetrievedChunk objects."""
-    agent, _, mock_ls, mock_rr = agent_and_mocks
+    agent, _, mock_ls, _ = agent_and_mocks
     # Force empty local search → retry path
     mock_ls.hybrid_search.return_value = []
 
-    with patch("graphnotebook.retrieval.router.Text2CypherRetriever") as mock_t2c_cls:
+    with (
+        patch("graphnotebook.retrieval.router.LocalSearcher") as mock_ls_cls,
+        patch("graphnotebook.retrieval.router.GlobalSearcher") as mock_gs_cls,
+        patch("graphnotebook.retrieval.router.Text2CypherRetriever") as mock_t2c_cls,
+        patch("graphnotebook.retrieval.router.llm") as mock_llm,
+        patch("graphnotebook.retrieval.router.synthesis_llm") as mock_synth_llm,
+        patch("graphnotebook.retrieval.router.reranker") as mock_rr,
+    ):
+        mock_ls = MagicMock()
+        mock_ls.search.return_value = []
+        mock_ls_cls.return_value = mock_ls
+
+        mock_gs = MagicMock()
+        mock_gs.community_manager.get_relevant_summaries.return_value = []
+        mock_gs_cls.return_value = mock_gs
+
         mock_t2c = MagicMock()
         mock_t2c.query.return_value = [{"name": "Test Entity", "type": "Person"}]
         mock_t2c_cls.return_value = mock_t2c
+        
+        mock_rr.rerank.return_value = [] # Ensure rerank returns empty to trigger retry
 
-        # The chunks added by retry must include "Cypher Result" prefix
-        # We verify indirectly via the reranker input or final state
-        # (exact assertion depends on whether reranker is called post-retry)
+        from graphnotebook.retrieval.router import build_query_agent
+        agent = build_query_agent(MagicMock())
+
+        state: QueryState = {
+            "query": "test",
+            "query_embedding": [0.0] * 1024,
+            "search_mode": "local",
+            "retrieved_chunks": [],
+            "community_summaries": [],
+            "context": "",
+            "answer": "",
+            "sources": [],
+            "iterations": 0,
+            "conversation_history": [],
+            "notebook_id": "test_nb",
+        }
+        result = agent.invoke(state)
+
+        # Verify text2cypher results are wrapped as chunks
+        assert len(result["retrieved_chunks"]) >= 1
+        assert any("Test Entity" in c.text for c in result["retrieved_chunks"])
+        assert any(c.source == "text2cypher" for c in result["retrieved_chunks"])

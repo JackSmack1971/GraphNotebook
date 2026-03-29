@@ -138,7 +138,13 @@ def build_app(settings, neo4j_client, llm_gateway, embedding_engine) -> gr.Block
                             viz_filter = gr.Textbox(
                                 placeholder="Filter by name...",
                                 label="Search Graph",
-                                scale=3,
+                                scale=2,
+                            )
+                            full_graph_toggle = gr.Checkbox(
+                                label="Load Full Graph",
+                                value=False,
+                                container=False,
+                                scale=1,
                             )
                             refresh_viz_btn = gr.Button("Refresh View", scale=1)
 

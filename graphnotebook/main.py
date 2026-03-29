@@ -1,5 +1,5 @@
 import os
-
+import gradio as gr
 from graphnotebook.config import Settings
 from graphnotebook.graph.neo4j_client import Neo4jClient
 from graphnotebook.llm.embeddings import EmbeddingEngine

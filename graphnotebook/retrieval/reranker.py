@@ -13,10 +13,13 @@ from sentence_transformers import CrossEncoder
 class RetrievedChunk:
     text: str
     score: float
-    source_file: str
-    chunk_index: int
+    id: str = ""
+    source: str = ""
+    source_file: str = ""
+    chunk_index: int = 0
     entities: list = field(default_factory=list)
     relationships: list = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
     community_context: str = ""
 
 
