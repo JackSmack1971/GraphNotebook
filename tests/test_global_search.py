@@ -39,7 +39,7 @@ def _make_summary(title: str, body: str, rank: int = 1) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_search_returns_context_string(global_searcher):
+def test_search_returns_context_string(global_searcher, mock_llm):
     """search() must return a non-empty context string when summaries exist."""
     global_searcher.community_manager.get_relevant_summaries.return_value = [
         _make_summary("Cluster A", "Entities in cluster A discuss topic X."),
@@ -64,7 +64,7 @@ def test_search_empty_summaries_returns_empty_context(global_searcher):
     assert isinstance(result["context"], str)
 
 
-def test_search_includes_summary_titles_in_context(global_searcher):
+def test_search_includes_summary_titles_in_context(global_searcher, mock_llm):
     """Community titles must appear in the assembled context."""
     global_searcher.community_manager.get_relevant_summaries.return_value = [
         _make_summary("UniqueClusterTitle", "Body text about the cluster."),

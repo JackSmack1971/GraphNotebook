@@ -109,7 +109,7 @@ def test_chunk_token_count_does_not_exceed_limit(chunker):
     """
     # Each paragraph is ~45 tokens — close to chunk_size=50
     para = ("word " * 45).strip()
-    text = "\n\n".join([para] * 4)
+    text = "\n\n".join([para] * 8)
     chunks = chunker.chunk_text(text, doc_id="boundary_doc")
 
     max_allowed = chunker.chunk_size + chunker.chunk_overlap  # 60

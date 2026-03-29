@@ -17,6 +17,7 @@ class RetrievedChunk:
     source: str = ""
     source_file: str = ""
     chunk_index: int = 0
+    page_number: int = 0
     entities: list = field(default_factory=list)
     relationships: list = field(default_factory=list)
     metadata: dict = field(default_factory=dict)

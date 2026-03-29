@@ -48,12 +48,10 @@ class GlobalSearcher:
             # We use invoke_json to structure the map phase score
             map_response = self.llm.invoke_json(
                 prompt=f"""Given the following community summary, extract information
-to answer the user's question.
-If the community is irrelevant, score it 0.
+to answer the user's question. If the community is irrelevant, score it 0.
 
 Community Title: {c.get("title")}
 Community Summary: {c.get("summary")}
-
 Question: {query}
 
 Respond in JSON format:
@@ -66,17 +64,19 @@ Respond in JSON format:
 
             score = map_response.get("score", 0)
             if score > 0:
-                partial_answers.append(
-                    {
-                        "title": c.get("title"),
-                        "answer": map_response.get("answer"),
-                        "score": score,
-                    }
-                )
+                partial_answers.append({
+                    "title": c.get("title"),
+                    "score": score,
+                    "rank": c.get("rank", 0),  # Preserve rank for tie-breaking
+                    "answer": map_response.get("answer", "")
+                })
 
-        # Sort partials by score
+        if not partial_answers:
+            return {"answer": "No relevant info in communities.", "context": ""}
+
+        # 3. Sort by LLM score, then community rank
         partial_answers = sorted(
-            partial_answers, key=lambda x: x["score"], reverse=True
+            partial_answers, key=lambda x: (x["score"], x.get("rank", 0)), reverse=True
         )
 
         if not partial_answers:

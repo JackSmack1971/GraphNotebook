@@ -89,5 +89,5 @@ class LocalSearcher:
                 )
             )
         # Results from local search queries are already sorted by score (vec_score),
-        # but for mocks we might want to ensure order.
-        return chunks
+        # but for robustness and mocks, we apply a final descending score sort.
+        return sorted(chunks, key=lambda x: x.score, reverse=True)

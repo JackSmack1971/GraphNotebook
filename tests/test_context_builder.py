@@ -27,6 +27,7 @@ def _chunk(text: str, source: str = "doc.pdf", idx: int = 0) -> RetrievedChunk:
         score=0.8,
         source_file=source,
         chunk_index=idx,
+        page_number=0,
         entities=[],
         relationships=[],
     )
@@ -114,10 +115,11 @@ def test_extract_sources_deduplicates(builder):
         _chunk("text3", source="other.pdf", idx=0),
     ]
     sources = builder.extract_sources(chunks)
-    assert sources.count("same.pdf") == 1, (
-        "Duplicate source_file entries must be deduplicated by extract_sources"
-    )
-    assert "other.pdf" in sources
+    assert any("same.pdf (Page 0)" in s for s in sources)
+    # Deduplication check: if source appeared multiple times, check if any unique (source + page) is duplicated
+    # same.pdf (Page 0) should appear once, other.pdf (Page 0) should appear once
+    assert len(sources) == 2, f"Expected 2 unique source/page entries, got {len(sources)}: {sources}"
+    assert any("other.pdf (Page 0)" in s for s in sources)
 
 
 def test_extract_sources_empty_chunks(builder):
