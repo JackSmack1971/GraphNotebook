@@ -144,3 +144,20 @@ def test_cache_summary_writes_all_fields(community_manager, mock_neo4j):
     )
     assert params.get("title") == "T"
     assert params.get("rank") == 3
+
+
+def test_detect_communities_returns_quality_metrics(community_manager, mock_neo4j):
+    """detect_communities must return Leiden metrics as a non-empty result list."""
+    mock_neo4j.query.return_value = [{"communityCount": 5, "modularity": 0.4}]
+    result = community_manager.detect_communities()
+
+    # Guard: method must return the Leiden result list, not None
+    assert result is not None, (
+        "detect_communities returned None — source method must 'return result'"
+    )
+    assert len(result) > 0, "Leiden result list must not be empty"
+
+    # Pin the quality metrics from result[0] (the list row from neo4j.query)
+    metrics = result[0]
+    assert metrics["communityCount"] == 5
+    assert metrics["modularity"] == pytest.approx(0.4, abs=1e-6)

@@ -57,7 +57,17 @@ class LLMGateway:
         )
         cleaned = raw.strip()
         if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            if "\n" in cleaned:
+                cleaned = cleaned.split("\n", 1)[1]
+            else:
+                cleaned = cleaned[3:].strip()
+                for lang in ["json", "cypher"]:
+                    if cleaned.lower().startswith(lang):
+                        cleaned = cleaned[len(lang):].strip()
+                        break
+            if "```" in cleaned:
+                cleaned = cleaned.rsplit("```", 1)[0]
+        cleaned = cleaned.strip()
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:

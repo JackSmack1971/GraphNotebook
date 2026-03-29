@@ -10,23 +10,28 @@ from graphnotebook.retrieval.router import QueryState, build_query_agent
 @pytest.fixture()
 def agent_and_mocks():
     mock_neo4j = MagicMock()
+    mock_llm = MagicMock()
+    mock_llm.invoke_json.return_value = {"mode": "local"}
+    mock_llm.invoke.return_value = "synthesized answer"
+    
+    mock_rr = MagicMock()
+    mock_rr.rerank.return_value = [
+        MagicMock(text="chunk", score=0.9, source_file="f.pdf", chunk_index=0)
+    ]
+    
+    mock_cb = MagicMock()
+    mock_cb.build.return_value = "formatted context"
+    mock_cb.extract_sources.return_value = []
+
     with (
-        patch("graphnotebook.retrieval.router.llm") as mock_llm,
-        patch("graphnotebook.retrieval.router.synthesis_llm") as mock_synthesis_llm,
-        patch("graphnotebook.retrieval.router.reranker") as mock_rr,
-        patch("graphnotebook.retrieval.router.context_builder") as mock_cb,
+        patch("graphnotebook.retrieval.router.llm", mock_llm),
+        patch("graphnotebook.retrieval.router.synthesis_llm", mock_llm),
+        patch("graphnotebook.retrieval.router.reranker", mock_rr),
+        patch("graphnotebook.retrieval.router.context_builder", mock_cb),
         patch("graphnotebook.retrieval.router.LocalSearcher") as mock_ls_cls,
         patch("graphnotebook.retrieval.router.GlobalSearcher") as mock_gs_cls,
         patch("graphnotebook.retrieval.router.Text2CypherRetriever") as mock_t2c_cls,
     ):
-        mock_llm.invoke_json.return_value = {"mode": "local"}
-        mock_llm.invoke.return_value = "synthesized answer"
-        mock_synthesis_llm.invoke.return_value = "synthesized answer"
-
-        mock_rr.rerank.return_value = [
-            MagicMock(text="chunk", score=0.9, source_file="f.pdf", chunk_index=0)
-        ]
-
         mock_ls = MagicMock()
         mock_ls.hybrid_search.return_value = [MagicMock()]
         mock_ls_cls.return_value = mock_ls
@@ -38,8 +43,6 @@ def agent_and_mocks():
         mock_t2c = MagicMock()
         mock_t2c.query.return_value = []
         mock_t2c_cls.return_value = mock_t2c
-
-        mock_cb.build.return_value = ("formatted context", [])
 
         agent = build_query_agent(mock_neo4j)
         yield agent, mock_llm, mock_ls, mock_rr

@@ -26,10 +26,13 @@ def test_parse_text_basic(tmp_path):
 
 def test_parse_text_hash_determinism(tmp_path):
     f = tmp_path / "same.txt"
-    f.write_text("consistent content", encoding="utf-8")
+    content = b"consistent content"
+    f.write_bytes(content)
+    expected = hashlib.sha256(content).hexdigest()
     doc1 = parse_text(str(f))
     doc2 = parse_text(str(f))
-    assert doc1.file_hash == doc2.file_hash
+    assert doc1.file_hash == expected
+    assert doc2.file_hash == expected  # also validates determinism
 
 
 def test_parse_text_md_extension(tmp_path):

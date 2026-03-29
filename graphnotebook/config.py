@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # Embedding/Chunking Settings
     embedding_model: str = Field(default="BAAI/bge-m3")
+    embedding_dimensions: int = Field(default=1024)
     chunk_size: int = Field(default=512)
     chunk_overlap: int = Field(default=64)
     encoding_name: str = Field(default="cl100k_base")

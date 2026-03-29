@@ -19,9 +19,13 @@ def test_short_text_produces_single_chunk(chunker):
 
 def test_long_text_produces_multiple_chunks(chunker):
     # ~200 tokens worth of text at chunk_size=50 should produce multiple chunks
-    long_text = "word "*30 + "\n\n" + "word "*30 + "\n\n" + "word "*30 + "\n\n" + "word "*30
+    # Chunker splits on paragraph boundaries (\n\n)
+    long_text = "\n\n".join(["word " * 20 for _ in range(6)])
     chunks = chunker.chunk_text(long_text, doc_id="doc1")
     assert len(chunks) > 1
+    # Pin chunk_index sequence (M4)
+    for i, c in enumerate(chunks):
+        assert c.chunk_index == i, f"Expected index {i}, got {c.chunk_index}"
 
 
 def test_overlap_between_chunks(chunker):
@@ -44,6 +48,8 @@ def test_chunk_metadata_fields(chunker):
     assert hasattr(c, "start_char")
     assert hasattr(c, "end_char")
     assert c.token_count > 0
+    # Pin token_count boundary (M1)
+    assert c.token_count <= chunker.chunk_size + chunker.chunk_overlap
 
 
 def test_chunk_ids_are_unique(chunker):
