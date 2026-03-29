@@ -10,7 +10,10 @@ All notable changes to the GraphNotebook project are documented below. This proj
 - **Global Search Tie-Breaking**: Community `rank` (from GDS Leiden) is now preserved during the Map phase and used to resolve ties in LLM relevance scores.
 - **Enhanced Source Attribution**: `ContextBuilder` now provides formatted `Source (Page N)` metadata for every retrieved chunk.
 - **Mutation-Killing Tests**: Added 58+ new tests in `test_pipeline.py` targeting LangGraph routing logic and error-passthrough boundaries.
-- **Coverage Baseline**: Initialized comprehensive HTML coverage reports (74% baseline reached).
+- **Router Strategy Isolation**: Implemented `global` and `hybrid` mode tests in `test_router.py` to ensure retrieval architecture isolation.
+- **Contract & Boundary Verification**: Added parameter contract assertions for `top_k=8` and iteration ceiling guards (max 3 cycles) to prevent infinite loops.
+- **Text2Cypher & Gateway Hardening**: Expanded coverage for native APOC procedures and LiteLLM fallback chains.
+- **Coverage Baseline**: Initialized comprehensive HTML coverage reports (74% baseline reached; core retrieval modules at 95%+).
 
 ### Changed
 - **Retrieval Signatures**: Refactored `LocalSearcher` and `GlobalSearcher` to fully support dependency injection of `EmbeddingEngine` and `LLMGateway`.
@@ -23,6 +26,7 @@ All notable changes to the GraphNotebook project are documented below. This proj
 - **Import Errors**: Fixed missing `get_schema_hash` exports in `extraction` and `ingestion` modules.
 - **ContextBuilder Deduplication**: Corrected logic for deduplicating sources when chunks from the same file/page are retrieved with different indices.
 - **Settings Alignment**: Realigned Pydantic `Settings` with updated environment prefix `GN_`.
+- **SemanticChunker Boundary**: Resolved a token-count overflow regression in boundary-matching tests.
 
 ---
 
