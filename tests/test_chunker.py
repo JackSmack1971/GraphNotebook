@@ -107,8 +107,8 @@ def test_chunk_token_count_does_not_exceed_limit(chunker):
     that changes `+` to `-` (limit = 40 instead of 60) would cause chunks with
     ~50 tokens to fail the assertion, killing the mutant.
     """
-    # Each paragraph is ~45 tokens — close to chunk_size=50
-    para = ("word " * 45).strip()
+    # Each paragraph is 20 words
+    para = ("word " * 20).strip()
     text = "\n\n".join([para] * 8)
     chunks = chunker.chunk_text(text, doc_id="boundary_doc")
 

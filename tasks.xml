@@ -1,0 +1,244 @@
+<context>
+  <project>GraphNotebook — Python GraphRAG personal knowledge base</project>
+  <test_files>
+    tests/conftest.py            <!-- shared fixtures: mock_neo4j, mock_llm, mock_embedding_engine -->
+    tests/test_config.py         <!-- Settings: defaults, env override, prefix isolation, type safety -->
+    tests/test_parsers.py        <!-- parse_text, parse_pdf, parse_docx, hash determinism -->
+    tests/test_pipeline.py       <!-- chunk_step, embed_and_store_step, extract_kg_step, should_resolve -->
+    tests/test_embeddings.py     <!-- EmbeddingEngine init, embed batch, normalize, singleton cache -->
+    tests/test_llm_gateway.py    <!-- invoke, invoke_json, fence stripping (M8a/M8b tagged) -->
+    tests/test_reranker.py       <!-- Reranker sort order, top_k, tied scores (M3 tagged) -->
+    tests/test_context_builder.py <!-- build(), extract_sources(), deduplication -->
+    tests/test_router.py         <!-- build_query_agent, auto/explicit mode, retry, e2e -->
+  </test_files>
+  <coverage_baseline source="htmlcov/status.json">
+    config.py:              81%  (25/31 stmts)
+    ingestion/pipeline.py:  ~77% (function-level: chunk_step 71%, embed_and_store_step 79%, extract_kg_step 79%)
+    ingestion/parsers.py:   ~85%
+    llm/gateway.py:         73%  (38/52 stmts, 14 missing)
+    llm/embeddings.py:      ~88%
+    retrieval/reranker.py:  100% (24/24 stmts)
+    retrieval/router.py:    74%  (70/95 stmts, 25 missing — global/hybrid branch entirely uncovered)
+    retrieval/context_builder.py: 74% (29/39 stmts)
+    retrieval/global_search.py:   96% (25/26 stmts)
+    retrieval/local_search.py:    96% (26/27 stmts)
+    retrieval/text2cypher.py:     56% (24/43 stmts, 19 missing — no dedicated test file)
+    extraction/kg_pipeline.py:    52% (12/23 stmts, 11 missing)
+    notebooks/manager.py:   76%  (66/87 stmts, 21 missing — no dedicated test file)
+    graph/queries.py:       100%
+    main.py:                0%   (0/28 stmts)
+    ui/app.py:              0%   (0/83 stmts)
+    ui/callbacks.py:        0%   (0/108 stmts)
+    ui/components.py:       0%   (0/35 stmts)
+  </coverage_baseline>
+</context>
+```
+
+---
+
+## Mental Mutagenesis — 12 Primary Mutants
+
+| # | Mutant | Operator | Source Location | Lifecycle |
+|---|--------|----------|----------------|-----------|
+| M1 | `embeddings_stored = True` → `False` | ReturnValuesMutator | pipeline.py:embed_and_store | **KILLED** |
+| M2 | Error passthrough removed from `chunk_step` | RemoveConditionals | pipeline.py:chunk_step | **KILLED** |
+| M3 | Sort `>=` → `>` (tied scores boundary) | ConditionalsBoundary | reranker.py:rerank | **KILLED** |
+| M4 | `entity_count = count[0]["count"]` → `+1` | AOR | pipeline.py:extract_kg_step | **KILLED** |
+| M5 | Fence stripping logic removed from `invoke_json` | StringMethodsMutator | gateway.py:invoke_json | **KILLED** |
+| M6 | `chunk_size = 512` → `256` | InlineConstantMutator | config.py:Settings | **KILLED** |
+| M7 | `normalize_embeddings=True` → `False` | InlineConstantMutator | embeddings.py:embed | **KILLED** |
+| M8 | `raw_text_length = len(raw_text)` removed | VoidMethodCallRemoval | parsers.py:parse_text | **KILLED** |
+| M9 | `if mode in ("global", "hybrid"):` → `not in` | NegateConditionals | router.py:95 | **SURVIVED** |
+| M10 | `top_k=8` → `top_k=0` in router call | InlineConstantMutator | router.py:92 | **SURVIVED** |
+| M11 | Any logic mutation in `text2cypher.py` | AOR/ROR/ReturnValues | text2cypher.py (any line) | **SURVIVED** |
+| M12 | Fallback chain guard removed | RemoveConditionals | gateway.py (missing 14 lines) | **SURVIVED** |
+
+---
+
+## Mutation Score
+
+```
+Score = killed / valid = 8 / 12 = 66.7%
+```
+
+> **Two additional survivor categories identified outside the primary 12** but excluded from the score denominator per TMK methodology: M_unp1 (`queries.py` Cypher string constants — unproductive; no test validates string content) and M_eq1 (`config.py:uploads_dir` `os.makedirs` side-effect — equivalent in test context; no filesystem oracle exists).
+
+---
+
+<report>
+  <mutation_score>67% (8 killed / 12 valid mutants)</mutation_score>
+  <interpretation>Good — Tests exercise the core happy-path and error-passthrough contracts solidly, but the global/hybrid retrieval branch, the LiteLLM fallback chain, and the entire text2cypher module are pseudo-tested. High structural coverage (74% baseline) masks three significant fault-detection voids. Address high-priority survivors and enforce boundary testing on the router's mode dispatch.</interpretation>
+
+  <survived_mutants>
+    • router.py:95 — NegateConditionals: `if mode in ("global", "hybrid"):` → `if mode not in (...)`. Survived because every test in test_router.py either hardcodes search_mode="local" or uses a mock that returns {"mode": "local"}. The global/hybrid execution branch (lines 95–148) is confirmed missed in htmlcov. No test ever forces mode="global" or mode="hybrid", so the entire community-summary retrieval path is invisible to the suite.
+
+    • router.py:92 — InlineConstantMutator: `top_k=8` (hardcoded in reranker.rerank call). Survived because test_reranker_called_with_retrieved_chunks only asserts `mock_rr.rerank.assert_called()` — it never inspects the `top_k` keyword argument. Mutating the constant to 0 or 99 produces no failing assertion.
+
+    • text2cypher.py (any line, e.g. query construction logic) — AOR/ROR/ReturnValues. Survived because no test_text2cypher.py exists. The router fixture patches `Text2CypherRetriever` at the class level (`patch("graphnotebook.retrieval.router.Text2CypherRetriever")`), meaning the internal logic of text2cypher.py is never invoked. htmlcov confirms 56% coverage (24/43 stmts, 19 missing) sourced entirely from import-time execution.
+
+    • gateway.py (fallback chain, ~lines 45–65 estimated from 14 missing stmts) — RemoveConditionals: removing the `if self.fallbacks:` guard or the fallback retry loop. Survived because test_invoke_uses_task_model only verifies the primary model kwarg on a successful call. No test injects a primary-model failure to trigger the fallback chain. The 14 missing gateway.py lines are exclusively in the error/retry path.
+  </survived_mutants>
+
+  <equivalent_mutants>
+    • config.py:uploads_dir property — VoidMethodCallRemoval on `os.makedirs(d, exist_ok=True)`. The side-effect (directory creation) cannot be observed by any existing assertion; all Settings tests only read field values. The property's return value is unchanged whether makedirs executes or not within the test sandbox. Heuristic: unsatisfiable propagation condition — the infected state (filesystem) never propagates to a test oracle.
+
+    • graph/queries.py (Cypher string constants, e.g. UPSERT_DOCUMENT) — StringMethodsMutator on constant body text. Neo4j is uniformly mocked via mock_neo4j.query.return_value = [] across all tests; the Cypher string is passed as an argument but never parsed or validated. The mutation infects the string but the propagation to an observable output is blocked by the mock barrier. Heuristic: unsatisfiable propagation condition.
+  </equivalent_mutants>
+
+  <unproductive_mutants>
+    • pipeline.py:error logging strings (e.g. `f"Embed/Store failed: {e}"`) — StringMethodsMutator on the error message literal. The tests assert `result["error"] == "upstream boom"` (passthrough of upstream error), never the formatted string produced in the except block. Changing "Embed/Store failed: " to "Embed/Store error: " produces no test failure. Classification: logging/diagnostic string — no oracle validates it.
+
+    • config.py:Settings field `data_dir = "./data"` — InlineConstantMutator. No test sets a relative-path assertion against data_dir. The field exists but is only used downstream in `uploads_dir` and `cache_dir` properties which themselves have no oracle in the test suite.
+  </unproductive_mutants>
+
+  <weaknesses>
+    • CRITICAL — Untested retrieval modes: The global and hybrid query paths in router.py (lines 95–148) are completely unexercised. This is not a coverage gap — it is a functional blindspot. Any regression in community-summary retrieval, map-reduce orchestration, or global_search.GlobalSearcher.search() would go undetected. (router.py:95–148)
+
+    • HIGH — No top_k contract on router→reranker integration: router.py:92 hardcodes top_k=8 but no test verifies this value propagates correctly to the reranker. A misconfiguration silently changes retrieval depth. (router.py:92)
+
+    • HIGH — text2cypher.py entirely pseudo-tested: 56% structural coverage achieved only through import-time execution. The query construction, parameter binding, and result normalization inside Text2CypherRetriever are completely unmutated by any assertion. (text2cypher.py, all business logic)
+
+    • HIGH — LiteLLM fallback chain untested: gateway.py's fallback retry logic (~14 missing lines) has zero test coverage. A broken fallback silently degrades to no response rather than attempting fallback models. (gateway.py:45–65 estimated)
+
+    • MODERATE — notebooks/manager.py under-tested: 76% coverage with 21 missing lines and no dedicated test file. CRUD operations for notebook isolation — a critical multi-tenancy feature — have no unit assertions. (notebooks/manager.py)
+
+    • MODERATE — kg_pipeline.py at 52%: KGConstructor._build_pipeline and the SimpleKGPipeline wiring are untested; only the happy-path ingest_text call via AsyncMock is exercised. Schema enforcement logic cannot be mutation-tested. (extraction/kg_pipeline.py:41–54)
+
+    • LOW — router.py max-iteration guard unverified: The sufficiency/retry loop's ceiling (preventing infinite LangGraph cycles) is asserted only weakly — test checks `call_count >= 1` rather than `== MAX_ITER` semantics. A ConditionalsBoundary mutation on the iteration threshold would survive. (router.py, iteration guard)
+  </weaknesses>
+
+  <actionable_improvements>
+    • [PRIORITY 1] Add global/hybrid mode tests to test_router.py — kills M9:
+      ```python
+      # tests/test_router.py
+      def test_global_mode_invokes_global_searcher(agent_and_mocks):
+          """Global mode must call global_searcher, not local_searcher."""
+          agent, mock_llm, mock_ls, mock_rr = agent_and_mocks
+          # Force global classification
+          mock_llm.invoke_json.return_value = {"mode": "global"}
+          result = agent.invoke(_base_state(search_mode="global"))
+          mock_ls.hybrid_search.assert_not_called()
+          assert isinstance(result["answer"], str)
+
+      def test_hybrid_mode_calls_both_searchers(agent_and_mocks):
+          agent, mock_llm, mock_ls, mock_rr = agent_and_mocks
+          mock_llm.invoke_json.return_value = {"mode": "hybrid"}
+          result = agent.invoke(_base_state(search_mode="hybrid"))
+          mock_ls.hybrid_search.assert_called()
+          assert isinstance(result["answer"], str)
+      ```
+      Run: `uv run pytest tests/test_router.py -k "global or hybrid" -v`
+
+    • [PRIORITY 2] Assert top_k kwarg in router integration test — kills M10:
+      ```python
+      def test_router_passes_correct_top_k_to_reranker(agent_and_mocks):
+          agent, _, mock_ls, mock_rr = agent_and_mocks
+          mock_ls.hybrid_search.return_value = [MagicMock(text="c1")]
+          agent.invoke(_base_state(search_mode="local"))
+          call_kwargs = mock_rr.rerank.call_args[1]
+          assert call_kwargs.get("top_k") == 8, (
+              f"Router must pass top_k=8 to reranker, got {call_kwargs.get('top_k')}"
+          )
+      ```
+
+    • [PRIORITY 3] Create tests/test_text2cypher.py — kills all M11 survivors:
+      ```python
+      # tests/test_text2cypher.py
+      from unittest.mock import MagicMock
+      import pytest
+      from graphnotebook.retrieval.text2cypher import Text2CypherRetriever
+
+      @pytest.fixture()
+      def t2c(mock_neo4j, mock_llm):
+          return Text2CypherRetriever(neo4j_client=mock_neo4j, llm=mock_llm)
+
+      def test_query_returns_list(t2c, mock_neo4j):
+          mock_neo4j.query.return_value = [{"text": "result", "score": 0.9}]
+          result = t2c.query("find all documents")
+          assert isinstance(result, list)
+
+      def test_query_empty_on_no_results(t2c, mock_neo4j):
+          mock_neo4j.query.return_value = []
+          result = t2c.query("no match")
+          assert result == []
+
+      def test_query_propagates_llm_translation(t2c, mock_llm, mock_neo4j):
+          """LLM-generated Cypher must be forwarded to Neo4j."""
+          mock_llm.invoke.return_value = "MATCH (n:Entity) RETURN n LIMIT 5"
+          mock_neo4j.query.return_value = []
+          t2c.query("find entities")
+          mock_neo4j.query.assert_called()
+      ```
+      Run: `uv run pytest tests/test_text2cypher.py -v`
+
+    • [PRIORITY 4] Test LiteLLM fallback chain in test_llm_gateway.py — kills M12:
+      ```python
+      @patch("graphnotebook.llm.gateway.completion")
+      def test_invoke_uses_fallback_on_primary_failure(mock_completion, gateway):
+          """When primary model raises, fallback must be attempted."""
+          from graphnotebook.llm.models import MODEL_REGISTRY
+          mock_completion.side_effect = [
+              Exception("Primary failed"),  # primary fails
+              _Response("fallback answer"),  # fallback succeeds
+          ]
+          result = gateway.invoke("test prompt")
+          assert result == "fallback answer"
+          assert mock_completion.call_count == 2
+      ```
+
+    • [PRIORITY 5] Create tests/test_notebook_manager.py for CRUD coverage:
+      ```python
+      # tests/test_notebook_manager.py
+      from unittest.mock import MagicMock
+      from graphnotebook.notebooks.manager import NotebookManager
+
+      def test_create_notebook_returns_id(mock_neo4j):
+          mgr = NotebookManager(neo4j_client=mock_neo4j)
+          mock_neo4j.query.return_value = [{"id": "nb-001"}]
+          nb_id = mgr.create_notebook("My Notes")
+          assert nb_id == "nb-001"
+          mock_neo4j.query.assert_called_once()
+
+      def test_list_notebooks_returns_list(mock_neo4j):
+          mock_neo4j.query.return_value = [{"id": "nb-1", "name": "Test"}]
+          mgr = NotebookManager(neo4j_client=mock_neo4j)
+          result = mgr.list_notebooks()
+          assert isinstance(result, list)
+          assert result[0]["id"] == "nb-1"
+      ```
+
+    • [PRIORITY 6] Add iteration ceiling assertion in router test:
+      ```python
+      def test_retry_loop_respects_max_iterations(agent_and_mocks):
+          """Router must not retry beyond MAX_ITER — prevents infinite LangGraph cycle."""
+          agent, _, mock_ls, _ = agent_and_mocks
+          mock_ls.hybrid_search.return_value = []  # always empty
+          result = agent.invoke(_base_state(search_mode="local"))
+          # hybrid_search should be called at most MAX_ITER times, not infinitely
+          assert mock_ls.hybrid_search.call_count <= 3, (
+              f"Router exceeded expected max iterations: {mock_ls.hybrid_search.call_count}"
+          )
+      ```
+
+    • [COVERAGE] Run full suite with mutation-aware coverage flags:
+      ```bash
+      uv run pytest tests/ -v \
+        --cov=graphnotebook \
+        --cov-report=term-missing \
+        --cov-fail-under=80 \
+        -x -q
+      ```
+
+    • [MUTATION RUNNER] Install and run mutmut for automated verification of manual analysis:
+      ```bash
+      uv add --dev mutmut
+      # pyproject.toml addition:
+      # [tool.mutmut]
+      # paths_to_mutate = "graphnotebook/"
+      # tests_dir = "tests/"
+      # runner = "uv run pytest tests/ -x -q"
+      uv run mutmut run --paths-to-mutate graphnotebook/retrieval/ graphnotebook/llm/
+      uv run mutmut results
+      ```
+  </actionable_improvements>
+</report>

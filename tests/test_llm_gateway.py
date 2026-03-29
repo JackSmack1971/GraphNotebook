@@ -147,3 +147,19 @@ def test_invoke_json_empty_braces_returns_dict(mock_completion, gateway):
     mock_completion.return_value = _Response("{}")
     result = gateway.invoke_json("empty")
     assert result == {}
+ 
+ 
+@patch("graphnotebook.llm.gateway.completion")
+def test_invoke_uses_fallback_parameter(mock_completion, gateway):
+    """Verify that fallbacks from MODEL_REGISTRY are passed to litellm.completion."""
+    from graphnotebook.llm.models import MODEL_REGISTRY
+ 
+    mock_completion.return_value = _Response("ok")
+    gateway.invoke("test")
+ 
+    call_kwargs = mock_completion.call_args[1]
+    expected_fallbacks = MODEL_REGISTRY["synthesis"]["fallbacks"]
+    assert call_kwargs.get("fallbacks") == expected_fallbacks, (
+        "Gateway didn't pass the correct fallback chain to LiteLLM"
+    )
+    assert call_kwargs.get("num_retries") == 3
