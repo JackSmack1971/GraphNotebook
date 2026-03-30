@@ -175,3 +175,18 @@ def test_detect_communities_returns_quality_metrics(community_manager, mock_neo4
     metrics = result[0]
     assert metrics["communityCount"] == 5
     assert metrics["modularity"] == pytest.approx(0.4, abs=1e-6)
+
+
+def test_detect_communities_drops_projection_on_success(community_manager, mock_neo4j):
+    """GDS projection must be dropped in finally even on success."""
+    mock_neo4j.query.return_value = [{"communityCount": 5, "modularity": 0.4}]
+    community_manager.detect_communities()
+
+    # Filter for drop calls: one at the start (cleanup) and one at the end (finally)
+    drop_calls = [
+        c for c in mock_neo4j.query.call_args_list if "gds.graph.drop('entity_graph')" in str(c)
+    ]
+    assert len(drop_calls) >= 2, (
+        "GDS projection 'entity_graph' must be dropped both at the start (cleanup) "
+        "and in the finally block (success path)."
+    )

@@ -109,3 +109,25 @@ def test_settings_retrieval_exact_values():
         s.max_context_tokens == 4000
     ), f"Expected 4000, got {s.max_context_tokens}"
     assert s.global_top_communities == 5
+
+
+# ---------------------------------------------------------------------------
+# Side-effects (Properties)
+# ---------------------------------------------------------------------------
+
+
+def test_uploads_dir_creates_directory(monkeypatch):
+    """Accessing the uploads_dir property must trigger os.makedirs."""
+    import os
+    from unittest.mock import MagicMock
+    mock_makedirs = MagicMock()
+    monkeypatch.setattr("os.makedirs", mock_makedirs)
+
+    s = Settings(data_dir="/tmp/test_data")
+    _ = s.uploads_dir
+
+    expected_path = os.path.normpath("/tmp/test_data/uploads")
+    # Verify os.makedirs call
+    args, kwargs = mock_makedirs.call_args
+    assert os.path.normpath(args[0]) == expected_path
+    assert kwargs.get("exist_ok") is True

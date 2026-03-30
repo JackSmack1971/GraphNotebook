@@ -74,7 +74,7 @@ def test_native_query_bypasses_llm():
     # SECOND call to query happens in _native_query to get the Cypher string
     mock_neo4j.query.assert_any_call(
         "CALL ai.text2cypher($query, {schema: $schema}) YIELD cypher RETURN cypher",
-        {"query": "native query", "schema": retriever._get_schema_description()}
+        params={"query": "native query", "schema": retriever._get_schema_description()}
     )
     # THIRD call is the execution of that Cypher
     mock_neo4j.query.assert_called_with("MATCH (n) RETURN n")

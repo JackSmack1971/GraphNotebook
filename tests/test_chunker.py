@@ -39,9 +39,9 @@ def test_long_text_produces_multiple_chunks(chunker):
     """Paragraphs separated by \\n\\n trigger the splitter.
 
     Each paragraph is ~20 tokens; at chunk_size=50 the chunker must produce
-    at least 2 chunks from 6 paragraphs.
+    at least 2 chunks from 10 paragraphs.
     """
-    paragraphs = ["word " * 20 for _ in range(6)]   # 6 × ~20-token paragraphs
+    paragraphs = ["word " * 20 for _ in range(10)]   # 10 × ~20-token paragraphs
     long_text = "\n\n".join(paragraphs)
     chunks = chunker.chunk_text(long_text, doc_id="doc1")
 
@@ -107,9 +107,10 @@ def test_chunk_token_count_does_not_exceed_limit(chunker):
     that changes `+` to `-` (limit = 40 instead of 60) would cause chunks with
     ~50 tokens to fail the assertion, killing the mutant.
     """
-    # Each paragraph is 20 words
-    para = ("word " * 20).strip()
-    text = "\n\n".join([para] * 8)
+    # Each paragraph is 30 words (~30 tokens)
+    para = ("word " * 30).strip()
+    # 50 paragraphs forces multiple chunks and boundary stress
+    text = "\n\n".join([para] * 50)
     chunks = chunker.chunk_text(text, doc_id="boundary_doc")
 
     max_allowed = chunker.chunk_size + chunker.chunk_overlap  # 60
